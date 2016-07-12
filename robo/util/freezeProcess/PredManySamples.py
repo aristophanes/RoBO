@@ -3,10 +3,10 @@ __author__ = "Tulio Paiva"
 __email__ = "paivat@cs.uni-freiburg.de"
 
 import numpy as np
-from robo.models.util.freezeProcess.PredictiveHyper2 import PredictiveHyper
-from robo.models.util.freezeProcess.PredictiveOld import PredictiveOld
-from robo.models.util.freezeProcess.PredictiveNew import PredictiveNew
-from robo.models.util.freezeProcess.LikIntegrate import LikIntegrate
+from robo.util.freezeProcess.PredictiveHyper import PredictiveHyper
+from robo.util.freezeProcess.PredictiveOld import PredictiveOld
+from robo.util.freezeProcess.PredictiveNew import PredictiveNew
+from robo.util.freezeProcess.LikIntegrate import LikIntegrate
 
 
 class PredSamples(object):
@@ -97,7 +97,7 @@ class PredSamples(object):
 		
 		return mean, std2
 	
-	def pred_hyper2(self, xprime=None):
+	def pred_hyper(self, xprime=None):
 		"""
 		Predicts mean and std2 for new configurations xprime. The prediction is averaged for
 		all GP hyperparameter samples. They are integrated out.
@@ -131,7 +131,7 @@ class PredSamples(object):
 		
 		for i in xrange(self.samples.shape[0]):
 			self.ph.setGpHypers(self.samples[i])
-			pre = self.ph.predict_asy2(xprime)
+			pre = self.ph.predict_asy(xprime)
 			#print 'pre: ', pre
 			if pre!=None:
 				mean_one, std2_one, C, mu = pre
@@ -276,15 +276,15 @@ if __name__ == '__main__':
 	
 	x = np.array([[2, 3, 3.2, 1.5, 2.3, 2.7, 3.6], [4, 5, 5.1, 5.2, 5.7, 5.72, 5.8], [5, 8, 8.1, 8.32, 8.4, 8.46, 8.53]])/10.
 	
-	likint = LikIntegrate()
-	samples = likint.create_configs(x,y)
+	#likint = LikIntegrate()
+	#samples = likint.create_configs(x,y)
 	
-	ps = PredSamples(samples, x, y)
+	#ps = PredSamples(samples, x, y)
 
-	xTest = np.array([[10., 10.3, 10.4, 10.55, 10.73, 11.2, 11.4], [9.1, 9.15, 9.18, 9.24, 9.37, 9.42, 9.58]])/10.
+	#xTest = np.array([[10., 10.3, 10.4, 10.55, 10.73, 11.2, 11.4], [9.1, 9.15, 9.18, 9.24, 9.37, 9.42, 9.58]])/10.
 	
-	mean, std2, divby = ps.pred_hyper2(xTest)
+	#mean, std2, divby = ps.pred_hyper2(xTest)
 	
-	print 'mean: ', mean
-	print 'std2: ', std2
-	print 'div_by: ', divby
+	#print 'mean: ', mean
+	#print 'std2: ', std2
+	#print 'div_by: ', divby

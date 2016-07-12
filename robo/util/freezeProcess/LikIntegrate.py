@@ -9,7 +9,7 @@ from numpy.linalg import inv
 import emcee
 import time
 import scipy.stats as sps
-from robo.models.util.freezeProcess.predictiveLikelihood import PredLik
+from robo.util.freezeProcess.predictiveLikelihood import PredLik
 
 
 class LikIntegrate(object):
@@ -209,10 +209,10 @@ if __name__ == '__main__':
 	
 	x = np.array([[2, 3, 3.2, 1.5, 2.3, 2.7, 3.6], [4, 5, 5.1, 5.2, 5.7, 5.72, 5.8], [5, 8, 8.1, 8.32, 8.4, 8.46, 8.53]])/10.
 	
-	likint = LikIntegrate()
-	samples = likint.create_configs(x,y)
-	print 'samples.shape: ', samples.shape
-	print
-	print 'samples: '
-	print samples
+	#likint = LikIntegrate()
+	#samples = likint.create_configs(x,y)
+	#print 'samples.shape: ', samples.shape
+	#print
+	#print 'samples: '
+	#print samples
 	

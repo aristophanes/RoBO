@@ -510,7 +510,7 @@ class PredictiveHyper(object):
 		return gamma    	
 	
 
-	def predict_asy2(self, xprime=None):
+	def predict_asy(self, xprime=None):
 		'''
 		Given new configuration xprime, it predicts the probability distribution of
 		the new asymptotic mean, with mean and covariance of the distribution

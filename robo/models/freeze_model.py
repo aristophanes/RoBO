@@ -8,23 +8,19 @@ __email__ = "paivat@cs.uni-freiburg.de"
 #import cython
 import scipy
 import numpy as np
-from robo.models.util.freezeProcess.predictiveLikelihood import PredLik
-from robo.models.util.freezeProcess.LikIntegrate import LikIntegrate
+from robo.util.freezeProcess.predictiveLikelihood import PredLik
+from robo.util.freezeProcess.LikIntegrate import LikIntegrate
 import logging
 from scipy import optimize
 from robo.models.base_model import BaseModel
-import robo.models.util.freezeProcess.PredManySamples as PredManySamples
-import robo.models.util.freezeProcess.LikIntegrate as LikIntegrate
-from robo.models.util.freezeProcess.PredictiveHyper2 import PredictiveHyper
+import robo.util.freezeProcess.PredManySamples as PredManySamples
+import robo.util.freezeProcess.LikIntegrate as LikIntegrate
+from robo.util.freezeProcess.PredictiveHyper import PredictiveHyper
 from sklearn.metrics import mean_squared_error as mse
 import time
 import matplotlib.pyplot as pl
 
 logger = logging.getLogger(__name__)
-
-"""
-closer to robo than version 0
-"""
 
 class FreezeModel(BaseModel):
 	
@@ -104,7 +100,7 @@ class FreezeModel(BaseModel):
 		std2: ndarray(*,1)
 			  predicted std2 for every configuration in X
 		"""
-		mean, std2, _ = self.ps.pred_hyper2(X)
+		mean, std2, _ = self.ps.pred_hyper(X)
 		return mean, std2
 
 	def predictiveNew(self, configuration, steps=1):

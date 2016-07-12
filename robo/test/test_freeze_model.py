@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Dec  6 14:51:37 2015
-
-@author: aaron
-"""
 
 import george
 import unittest
@@ -19,7 +14,7 @@ from robo.acquisition.information_gain import InformationGain
 from robo.incumbent.best_observation import BestObservation
 from robo.incumbent.posterior_optimization import PosteriorMeanOptimization
 from robo.incumbent.posterior_optimization import PosteriorMeanAndStdOptimization
-from robo.models.freeze_model1 import FreezeModel
+from robo.models.freeze_model import FreezeModel
 
 
 class TestGaussianProcess(unittest.TestCase):
@@ -28,107 +23,23 @@ class TestGaussianProcess(unittest.TestCase):
         X_lower = np.array([0])
         X_upper = np.array([1])
         X = init_random_uniform(X_lower, X_upper, 10)
-        Y = np.sin(X) #* todo: here we should have a whole Y curve for each one of the configurations
+        
+        curves = np.zeros(len(X), dtype=object)
+        for i in xrange(len(curves)):
+			curves[i] = np.random.rand(3)
 
-        kernel = george.kernels.Matern52Kernel(np.ones([1]), #* you do not need it
-                                               ndim=1)
-
-        prior = TophatPrior(-2, 2) #no need
-        model = GaussianProcess(kernel, prior=prior) #* no need
-        model1 = FreezeModel(x_train=X, y_train=Y) #* It is important that the Y array is of dtpye=object
-        model.train(X, Y)
+        model = FreezeModel(x_train=X, y_train=curves)
+        model.train()
 
         x_test = init_random_uniform(X_lower, X_upper, 3)
 
         # Shape matching predict
-        m, v = model.predict(x_test) #* It is importat to see whether your m and v i being outputed correctly below
-
-        assert len(m.shape) == 2
-        assert m.shape[0] == x_test.shape[0]
-        assert m.shape[1] == 1
-        assert len(v.shape) == 2
-        assert v.shape[0] == x_test.shape[0]
-        assert v.shape[1] == x_test.shape[0]
-
-        #TODO: check gradients
-
-        # Shape matching function sampling #
-											 #* You have no function for sampling functions. Then you dont need it
-        x_ = np.linspace(X_lower, X_upper, 10)
-        x_ = x_[:, np.newaxis]
-        funcs = model.sample_functions(x_, n_funcs=2)
-        assert len(funcs.shape) == 2
-        assert funcs.shape[0] == 2
-        assert funcs.shape[1] == x_.shape[0]
-
-        # Shape matching predict variance
-											#* You do not have any predict_variance function
-        x_test1 = np.array([np.random.rand(1)])
-        x_test2 = np.random.rand(10)[:, np.newaxis]
-        var = model.predict_variance(x_test1, x_test2)
-        assert len(var.shape) == 2
-        assert var.shape[0] == x_test2.shape[0]
-        assert var.shape[1] == 1
-
-        # Check compatibility with all acquisition functions
-															#* here you can only do it if you have the integrated acq_fct.
-															# you just have to look in each case, then adapt or drop if that's
-															# not yet integrated
-        acq_func = EI(model,
-                     X_upper=X_upper,
-                     X_lower=X_lower)
-        acq_func.update(model)
-        acq_func(x_test)
-
-        acq_func = PI(model,
-                     X_upper=X_upper,
-                     X_lower=X_lower)
-        acq_func.update(model)
-        acq_func(x_test)
-
-        acq_func = LCB(model,
-                     X_upper=X_upper,
-                     X_lower=X_lower)
-        acq_func.update(model)
-        acq_func(x_test)
-
-        acq_func = InformationGain(model,
-                     X_upper=X_upper,
-                     X_lower=X_lower)
-        acq_func.update(model)
-        acq_func(x_test)
+        m, v = model.predict(x_test)
         
-        # Check compatibility with all incumbent estimation methods
-																	#* You have to look at each case to see whether it does
-																	# make sense for your case.
-        rec = BestObservation(model, X_lower, X_upper)
-        inc, inc_val = rec.estimate_incumbent(None)
-        assert len(inc.shape) == 2
-        assert inc.shape[0] == 1
-        assert inc.shape[1] == X_upper.shape[0]
-        assert len(inc_val.shape) == 2
-        assert inc_val.shape[0] == 1
-        assert inc_val.shape[1] == 1
-
-        rec = PosteriorMeanOptimization(model, X_lower, X_upper)
-        startpoints = init_random_uniform(X_lower, X_upper, 4)
-        inc, inc_val = rec.estimate_incumbent(startpoints)
-        assert len(inc.shape) == 2
-        assert inc.shape[0] == 1
-        assert inc.shape[1] == X_upper.shape[0]
-        assert len(inc_val.shape) == 2
-        assert inc_val.shape[0] == 1
-        assert inc_val.shape[1] == 1
-
-        rec = PosteriorMeanAndStdOptimization(model, X_lower, X_upper)
-        startpoints = init_random_uniform(X_lower, X_upper, 4)
-        inc, inc_val = rec.estimate_incumbent(startpoints)
-        assert len(inc.shape) == 2
-        assert inc.shape[0] == 1
-        assert inc.shape[1] == X_upper.shape[0]
-        assert len(inc_val.shape) == 2
-        assert inc_val.shape[0] == 1
-        assert inc_val.shape[1] == 1
+        assert len(m.shape) == 1
+        assert m.shape[0] == x_test.shape[0]
+        assert len(v.shape) == 1
+        assert v.shape[0] == x_test.shape[0]
 
 if __name__ == "__main__":
     unittest.main()

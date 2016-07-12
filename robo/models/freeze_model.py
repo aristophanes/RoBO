@@ -17,6 +17,8 @@ from scipy.optimize import minimize
 from numpy.linalg import solve
 from math import exp
 from scipy.linalg import block_diag
+from robo.priors.base_prior import BasePrior, TophatPrior, \
+    LognormalPrior, HorseshoePrior
 
 logger = logging.getLogger(__name__)
 

@@ -292,7 +292,7 @@ class LognormalPrior(BasePrior):
         p0 = self.rng.lognormal(mean=self.mean,
                                    sigma=self.sigma,
                                    size=n_samples)
-        return p0[:, np.newaxis]
+        return p0#[:, np.newaxis]
 
     def gradient(self, theta):
         """
@@ -385,3 +385,81 @@ class NormalPrior(BasePrior):
         #return sps.norm.pdf(theta, scale=self.sigma, loc=self.mean)
         return (1 / (self.sigma * np.sqrt(2 * np.pi))) * (- theta /
             (self.sigma ** 2) * np.exp(- (theta ** 2) / (2 * self.sigma ** 2)))
+
+class UniformPrior(BasePrior):
+    def __init__(self, minv, maxv, rng = None):
+        """
+        Log normal prior
+
+        Parameters
+        ----------
+        minv: float
+            min value of the Uniform Prior
+        maxv: float
+            max value of the Uniform Prior
+        """
+        if rng is None:
+            self.rng = np.random.RandomState(np.random.randint(0, 10000))
+        else:
+            self.rng = rng
+
+        self.minv = minv
+        self.maxv = maxv
+        if not (self.maxv > self.minv):
+            raise Exception("Upper bound of Uniform prior must be greater \
+            than the lower bound!")
+
+    def lnprob(self, theta):
+		"""
+		Calculates the uniform probability of samples extracted from the uniform distribution between 0 and 10
+		
+		Parameters
+		----------
+		theta: the GP hyperparameters which were drawn from the uniform distribution between 0 and 10
+		
+		Returns
+		-------
+		uniform probability: float
+			The sum of the log probabilities of all different samples extracted from the uniform distribution
+		"""
+		if np.any(theta < self.minv) or np.any(theta > self.maxv):
+			return -np.inf
+		else:
+			probs = np.zeros_like(theta)
+			probs[:] = 1./float(maxv-minv)
+			return np.log(probs)
+
+    def sample_from_prior(self, n_samples):
+		"""
+		Samples values between minv and maxv from the uniform distribution
+		Parameters
+		----------
+		n_samples: scalar | tuple
+			The shape of the samples from the uniform distribution
+		Returns
+		-------
+		ndarray(n_samples)
+			The samples from the uniform distribution
+		"""
+		
+		p0 = np.log(np.random.uniform(self.minv, self.maxv, n_samples))
+		
+		return p0[:, np.newaxis]
+		
+
+    def gradient(self, theta):
+        """
+        Computes the gradient of the prior with
+        respect to theta.
+
+        Parameters
+        ----------
+        theta : (D,) numpy array
+            Hyperparameter configuration in log space
+
+        Returns
+        -------
+        (D) np.array
+            The gradient of the prior at theta.
+        """
+        pass

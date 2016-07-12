@@ -543,7 +543,12 @@ class LikIntegrate(object):
 		p0a = self.samples_uniform((hyper_configs, flex))
 		
 		#sample amplitude for GP over configs and alpha e beta for GP over curve
+		lnPrior = LognormalPrior(sigma=0.1, mean=0.0)
+		
 		p0b = self.samples_norm((hyper_configs, 3))
+		print 'p0b: ', p0b
+		p0b = lnPrior.sample_from_prior(n_samples=(hyper_configs, 3))
+		print 'p0b: ', p0b
 		
 		p0 = np.append(p0a, p0b, axis=1)
 		

@@ -191,7 +191,7 @@ class HorseshoePrior(BasePrior):
         """
         # We computed it exactly as in the original spearmint code
         if np.any(theta == 0.0):
-            return np.inf
+            return -np.inf
         return np.log(np.log(1 + 3.0 * (self.scale / np.exp(theta)) ** 2))
 
     def sample_from_prior(self, n_samples):
@@ -212,7 +212,9 @@ class HorseshoePrior(BasePrior):
         lamda = np.abs(self.rng.standard_cauchy(size=n_samples))
 
         p0 = np.log(np.abs(self.rng.randn() * lamda * self.scale))
-        return p0[:, np.newaxis]
+        if len(p0.shape)==1:
+			p0 = p0[:, np.newaxis]
+        return p0
 
     def gradient(self, theta):
         """
@@ -292,7 +294,11 @@ class LognormalPrior(BasePrior):
         p0 = self.rng.lognormal(mean=self.mean,
                                    sigma=self.sigma,
                                    size=n_samples)
-        return p0#[:, np.newaxis]
+        
+        if len(p0.shape) == 1:
+			p0 = p0[:, np.newaxis]
+        
+        return p0
 
     def gradient(self, theta):
         """
@@ -426,7 +432,7 @@ class UniformPrior(BasePrior):
 			return -np.inf
 		else:
 			probs = np.zeros_like(theta)
-			probs[:] = 1./float(maxv-minv)
+			probs[:] = 1./float(self.maxv-self.minv)
 			return np.log(probs)
 
     def sample_from_prior(self, n_samples):
@@ -444,7 +450,10 @@ class UniformPrior(BasePrior):
 		
 		p0 = np.log(np.random.uniform(self.minv, self.maxv, n_samples))
 		
-		return p0[:, np.newaxis]
+		if len(p0.shape)==1:
+			p0 = p0[:, np.newaxis]
+		
+		return p0
 		
 
     def gradient(self, theta):

@@ -17,7 +17,7 @@ from scipy.optimize import minimize
 from numpy.linalg import solve
 from math import exp
 from scipy.linalg import block_diag
-from robo.priors.base_prior import BasePrior, TophatPrior, LognormalPrior, HorseshoePrior
+from robo.priors.base_prior import BasePrior, TophatPrior, LognormalPrior, HorseshoePrior, UniformPrior
 
 logger = logging.getLogger(__name__)
 
@@ -411,77 +411,6 @@ class LikIntegrate(object):
 		self.horse = horse
 		self.samenoise = samenoise
 	
-	def samples_norm(self, n_samples):
-		"""
-		Samples from the lognorm distribution
-		Parameters
-		----------
-		n_samples: scalar | tuple
-			The shape of the samples from the lognormal distribution
-		Returns
-		-------
-		ndarray(n_samples)
-			The samples from the lognorm
-		"""
-		return np.random.lognormal(mean=0.,
-							   sigma=1,
-							   size=n_samples)
-	
-	def samples_noise(self, n_samples):
-		"""
-		Samples noise from the lognorm distribution for the kernel_hyper and kernel_curve
-		Parameters
-		----------
-		n_samples: scalar | tuple
-			The shape of the samples from the lognormal distribution
-		Returns
-		-------
-		ndarray(n_samples)
-			The noise samples from the lognorm
-		"""
-		return np.random.lognormal(mean=0.,
-							   sigma=1,
-							   size=n_samples)
-	
-	def samples_horse(self, n_samples, scale=0.1, rng=None):
-		if rng is None:
-			rng = np.random.RandomState(42)
-		
-		lamda = np.abs(rng.standard_cauchy(size=n_samples))
-		#p0 = np.log(np.abs(rng.randn() * lamda * scale))
-		p0 = np.abs(np.log(np.abs(rng.randn() * lamda * scale)))
-		return p0
-	
-	
-	def samples_uniform(self, n_samples):
-		"""
-		Samples values between 0 and 10 from the uniform distribution
-		Parameters
-		----------
-		n_samples: scalar | tuple
-			The shape of the samples from the uniform distribution
-		Returns
-		-------
-		ndarray(n_samples)
-			The samples from the uniform distribution
-		"""
-		return np.log(np.random.uniform(0, 10, n_samples))
-	
-	def sampleMconst(self, n_samples=(1,1)):
-		"""
-		Samples values between y_min and y_max from the uniform distribution
-		Parameters
-		----------
-		n_samples: scalar | tuple
-			The shape of the samples from the uniform distribution
-		Returns
-		-------
-		ndarray(n_samples)
-			The samples from the uniform distribution between y_min and y_max
-		"""
-		y = self.getYvector()
-		return np.log(np.random.uniform(np.min(y), np.max(y), n_samples))
-		
 
 	def getYvector(self):
 		"""
@@ -540,28 +469,27 @@ class LikIntegrate(object):
 		sampler = emcee.EnsembleSampler(hyper_configs, fix+flex, pdl.marginal_likelihood)
 		
 		#sample length scales for GP over configs
-		p0a = self.samples_uniform((hyper_configs, flex))
+		uPrior = UniformPrior(minv=0, maxv=10)
+		p0a = uPrior.sample_from_prior(n_samples=(hyper_configs, flex))
 		
 		#sample amplitude for GP over configs and alpha e beta for GP over curve
 		lnPrior = LognormalPrior(sigma=0.1, mean=0.0)
-		
-		p0b = self.samples_norm((hyper_configs, 3))
-		print 'p0b: ', p0b
 		p0b = lnPrior.sample_from_prior(n_samples=(hyper_configs, 3))
-		print 'p0b: ', p0b
 		
 		p0 = np.append(p0a, p0b, axis=1)
 		
+		hPrior = HorseshoePrior()
+		
 		if not self.samenoise:
 			if not self.horse:
-				p0d = self.samples_noise((hyper_configs, 2))
+				p0d = lnPrior.sample_from_prior(n_samples=(hyper_configs, 2))
 			else:
-				p0d = self.samples_horse((hyper_configs, 2))
+				p0d = np.abs(hPrior.sample_from_prior(n_samples=(hyper_configs, 2)))
 		else:
 			if not self.horse:
-				p0d = self.samples_noise((hyper_configs, 1))
+				p0d = lnPrior.sample_from_prior(n_samples=(hyper_configs, 1))
 			else:
-				p0d = self.samples_horse((hyper_configs, 1))
+				p0d = np.abs(hPrior.sample_from_prior(n_samples=(hyper_configs, 1)))
 		
 		
 		p0 = np.append(p0, p0d, axis=1)
@@ -619,6 +547,9 @@ class PredLik(object):
 		self.horse = horse
 		self.samenoise = samenoise
 		self.m_const = None
+		self.lnPrior = LognormalPrior(sigma=0.1, mean=0.0)
+		self.uPrior = UniformPrior(minv=0, maxv=10)
+		self.hPrior = HorseshoePrior()
 		
 	def inverse(self, chol):
 		''' 
@@ -1215,10 +1146,15 @@ class PredLik(object):
 		#print 'self.prob_norm(np.array([theta0, alpha, beta])): ', self.prob_norm(np.array([theta0, alpha, beta]))
 		#print 'self.prob_horse(np.array([self.noiseHyper, self.noiseCurve])): ', self.prob_horse(np.array([self.noiseHyper, self.noiseCurve]))
 
+		#if not self.horse:
+			#lp = logP + self.prob_uniform(theta_d) + self.prob_norm(np.array([theta0, alpha, beta])) + self.prob_noise(np.array([self.noiseHyper, self.noiseCurve]))# + self.prob_uniform_mconst(m_const)
+		#else:
+			#lp = logP + self.prob_uniform(theta_d) + self.prob_norm(np.array([theta0, alpha, beta])) + self.prob_horse(np.array([self.noiseHyper, self.noiseCurve]))
+		
 		if not self.horse:
-			lp = logP + self.prob_uniform(theta_d) + self.prob_norm(np.array([theta0, alpha, beta])) + self.prob_noise(np.array([self.noiseHyper, self.noiseCurve]))# + self.prob_uniform_mconst(m_const)
+			lp = logP + np.sum(self.uPrior.lnprob(theta_d)) + np.sum(self.lnPrior.lnprob(np.array([theta0, alpha, beta]))) + np.sum(self.lnPrior.lnprob(np.array([self.noiseHyper, self.noiseCurve])))
 		else:
-			lp = logP + self.prob_uniform(theta_d) + self.prob_norm(np.array([theta0, alpha, beta])) + self.prob_horse(np.array([self.noiseHyper, self.noiseCurve]))
+			lp = logP + np.sum(self.uPrior.lnprob(theta_d)) + np.sum(self.lnPrior.lnprob(np.array([theta0, alpha, beta]))) + np.sum(self.hPrior.lnprob(np.array([self.noiseHyper, self.noiseCurve])))
 
 		if lp == None or str(lp) == str(np.nan):
 			print 'failed: lp'
@@ -1226,95 +1162,7 @@ class PredLik(object):
 		
 		#print 'lp: ', lp
 		return lp
-	
-	
-	def prob_norm(self, theta):
-		"""
-		Calculates the log probability of samples extracted from the lognormal distribution
-		
-		Parameters
-		----------
-		theta: the GP hyperparameters which were drawn from the lognormal distribution
-		
-		Returns
-		-------
-		log probability: float
-			The sum of the log probabilities of all different samples extracted from the lognorm
-		"""
-		std = np.zeros_like(theta)
-		std[:] = 1.
-		probs = sps.lognorm.logpdf(theta, std, loc=np.zeros_like(theta))
-		#probs = np.log(sps.lognorm.logpdf(theta, std, loc=np.zeros_like(theta)))
-		return np.sum(probs)
-	
-	def prob_horse(self, theta, scale=0.1):
-		if np.any(theta == 0.0):
-			#return np.inf
-			return -np.inf
-		
-		#return np.log(np.log(1 + 3.0 * (scale / np.exp(theta)) ** 2))
-		return np.sum(np.log(np.log(1 + 3.0 * (scale / np.exp(theta)) ** 2)))
 
-	def prob_noise(self, theta):
-		"""
-		Calculates the log probability of noise samples extracted from the lognormal distribution
-		
-		Parameters
-		----------
-		theta: the GP noise hyperparameters which were drawn from the lognormal distribution
-		
-		Returns
-		-------
-		log probability: float
-			The sum of the log probabilities of all different noise samples
-		"""
-		std = np.zeros_like(theta)
-		std[:] = 1.
-		probs = sps.lognorm.logpdf(theta, std, loc=np.zeros_like(theta))
-		return np.sum(probs)
-
-#I'm not sure about this probs[:] = 0.1. I concluded that from some theory, but I should verify it	
-	def prob_uniform(self, theta):
-		"""
-		Calculates the uniform probability of samples extracted from the uniform distribution between 0 and 10
-		
-		Parameters
-		----------
-		theta: the GP hyperparameters which were drawn from the uniform distribution between 0 and 10
-		
-		Returns
-		-------
-		uniform probability: float
-			The sum of the log probabilities of all different samples extracted from the uniform distribution
-		"""
-		if np.any(theta < 0) or np.any(theta>10):
-			return -np.inf
-		else:
-			probs = np.zeros_like(theta)
-			probs[:] = 0.1
-			return np.sum(np.log(probs))
-	
-	def prob_uniform_mconst(self, theta):
-		"""
-		Calculates the uniform probability of samples extracted from the uniform distribution between y_min and y_max
-		
-		Parameters
-		----------
-		theta: the GP hyperparameters which were drawn from the uniform distribution between y_min and y_max
-		
-		Returns
-		-------
-		uniform probability: float
-			The sum of the log probabilities of all different samples extracted from the uniform distribution
-		"""
-		mini = np.min(self.y_vec)
-		maxi = np.max(self.y_vec)
-		if np.any(theta < mini) or np.any(theta>maxi):
-			return -np.inf
-		else:
-			probs = np.zeros_like(theta)
-			probs[:] = 1./(maxi-mini)
-			return np.sum(np.log(probs))
 
 """
 Based on equation 19 from the freeze-thawn paper

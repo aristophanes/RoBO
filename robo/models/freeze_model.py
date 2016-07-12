@@ -22,7 +22,7 @@ import matplotlib.pyplot as pl
 
 logger = logging.getLogger(__name__)
 
-class FreezeModel(BaseModel):
+class FreezeThawGP(BaseModel):
 	
 	def __init__(self,
 	             x_train=None,
@@ -103,7 +103,7 @@ class FreezeModel(BaseModel):
 		mean, std2, _ = self.ps.pred_hyper(X)
 		return mean, std2
 
-	def predictiveNew(self, configuration, steps=1):
+	def predictive_new(self, configuration, steps=1):
 		"""
 		Predicts mean and std2 for configurations completely new configuration X. The prediction is averaged for
 		all GP hyperparameter samples. They are integrated out.
@@ -126,7 +126,7 @@ class FreezeModel(BaseModel):
 		
 		return mean, std2
 
-	def predictiveOld(self, conf_nr, steps, fro=None):
+	def predictive_old(self, conf_nr, steps, fro=None):
 		"""
 		Predicts mean and std2 for an already active configuration of number conf_nr. The prediction is averaged for
 		all GP hyperparameter samples. They are integrated out. If fro is None, then the prediction is done from the 

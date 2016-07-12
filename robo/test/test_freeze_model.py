@@ -14,7 +14,7 @@ from robo.acquisition.information_gain import InformationGain
 from robo.incumbent.best_observation import BestObservation
 from robo.incumbent.posterior_optimization import PosteriorMeanOptimization
 from robo.incumbent.posterior_optimization import PosteriorMeanAndStdOptimization
-from robo.models.freeze_model import FreezeModel
+from robo.models.freeze_model import FreezeThawGP
 
 
 class TestGaussianProcess(unittest.TestCase):
@@ -28,7 +28,7 @@ class TestGaussianProcess(unittest.TestCase):
         for i in xrange(len(curves)):
 			curves[i] = np.random.rand(3)
 
-        model = FreezeModel(x_train=X, y_train=curves)
+        model = FreezeThawGP(x_train=X, y_train=curves)
         model.train()
 
         x_test = init_random_uniform(X_lower, X_upper, 3)

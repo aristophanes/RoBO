@@ -3,7 +3,7 @@
 import george
 import unittest
 import numpy as np
-from  scipy.optimize import check_grad
+from scipy.optimize import check_grad
 from robo.models.gaussian_process import GaussianProcess
 from robo.priors.default_priors import TophatPrior
 from robo.initial_design.init_random_uniform import init_random_uniform
@@ -23,10 +23,10 @@ class TestGaussianProcess(unittest.TestCase):
         X_lower = np.array([0])
         X_upper = np.array([1])
         X = init_random_uniform(X_lower, X_upper, 10)
-        
+
         curves = np.zeros(len(X), dtype=object)
         for i in xrange(len(curves)):
-			curves[i] = np.random.rand(3)
+            curves[i] = np.random.rand(3)
 
         model = FreezeThawGP(x_train=X, y_train=curves)
         model.train()
@@ -35,7 +35,7 @@ class TestGaussianProcess(unittest.TestCase):
 
         # Shape matching predict
         m, v = model.predict(x_test)
-        
+
         assert len(m.shape) == 1
         assert m.shape[0] == x_test.shape[0]
         assert len(v.shape) == 1

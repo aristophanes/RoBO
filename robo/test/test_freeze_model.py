@@ -14,7 +14,7 @@ from robo.acquisition.information_gain import InformationGain
 from robo.incumbent.best_observation import BestObservation
 from robo.incumbent.posterior_optimization import PosteriorMeanOptimization
 from robo.incumbent.posterior_optimization import PosteriorMeanAndStdOptimization
-from robo.models.freeze_model import FreezeThawGP
+from robo.models.freeze_thaw_model import FreezeThawGP
 
 
 class TestGaussianProcess(unittest.TestCase):
@@ -30,16 +30,36 @@ class TestGaussianProcess(unittest.TestCase):
 
         model = FreezeThawGP(x_train=X, y_train=curves)
         model.train()
-
+        
+        assert len(model.samples.shape)==2
+        
+        #"""
         x_test = init_random_uniform(X_lower, X_upper, 3)
 
         # Shape matching predict
-        m, v = model.predict(x_test)
+        #m, v = model.predict(x_test)
+        #m, v, _ = model.pred_hyper(x_test)
+        m_asympt, v_asympt = model.predict(xprime=x_test, option='asympt')
 
-        assert len(m.shape) == 1
-        assert m.shape[0] == x_test.shape[0]
-        assert len(v.shape) == 1
-        assert v.shape[0] == x_test.shape[0]
+        assert len(m_asympt.shape) == 1
+        assert m_asympt.shape[0] == x_test.shape[0]
+        assert len(v_asympt.shape) == 1
+        assert v_asympt.shape[0] == x_test.shape[0]
+        #"""
+
+        m_old,v_old = model.predict(xprime=None, option='old', conf_nr=0, from_step=None, further_steps=1)
+
+        assert len(m_old.shape) == 1
+        assert m_old.shape[0] == 1
+        assert len(v_old.shape) == 1
+        assert v_old.shape[0] == 1
+
+        m_new,v_new = model.predict(xprime=np.array([x_test[0]]), option='new', further_steps=1)
+
+        assert len(m_new.shape) == 1
+        assert m_new.shape[0] == np.array([x_test[0]]).shape[0]
+        assert len(v_new.shape) == 1
+        assert v_new.shape[0] == np.array([x_test[0]]).shape[0]
 
 if __name__ == "__main__":
     unittest.main()

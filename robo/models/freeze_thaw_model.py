@@ -43,15 +43,15 @@ class FreezeThawGP(BaseModel):
         Parameters
         ----------
         x_train: ndarray(N,D)
-               The input training data for all GPs
+            The input training data for all GPs
         y_train: ndarray(N,T)
-               The target training data for all GPs. The ndarray can be of dtype=object,
-               if the curves have different lengths
+            The target training data for all GPs. The ndarray can be of dtype=object,
+            if the curves have different lengths
         x_test: ndarray(*,D)
-               The current test data for the GPs, where * is the number of test points
+            The current test data for the GPs, where * is the number of test points
         sampleSet : ndarray(S,H)
-               Set of all GP hyperparameter samples (S, H), with S as the number of samples and H the number of
-               GP hyperparameters. This option should only be used, if the GP-hyperparameter samples already exist
+            Set of all GP hyperparameter samples (S, H), with S as the number of samples and H the number of
+            GP hyperparameters. This option should only be used, if the GP-hyperparameter samples already exist
         """
 
         self.X = x_train
@@ -88,10 +88,10 @@ class FreezeThawGP(BaseModel):
         Parameters
         ----------
         x_train: ndarray(N,D)
-                The input training data for all GPs
+            The input training data for all GPs
         y_train: ndarray(T,N)
-                The target training data for all GPs. The ndarray can be of dtype=object,
-                if the curves have different lengths.   
+            The target training data for all GPs. The ndarray can be of dtype=object,
+            if the curves have different lengths.   
         """
 
         if X is not None:
@@ -113,21 +113,21 @@ class FreezeThawGP(BaseModel):
         Parameters
         ----------
         xprime: ndarray(N,D)
-               The new configuration(s)
+            The new configuration(s)
         option: string
-               The prediction type: 'asympt', 'old', 'new'
+            The prediction type: 'asympt', 'old', 'new'
         conf_nr: integer
-               The index of an old configuration of which a new step is predicted
+            The index of an old configuration of which a new step is predicted
         from_step: integer
-                The step from which the prediction begins for an old configuration.
-                If none is give, it is assumend one is predicting from the last step
+            The step from which the prediction begins for an old configuration.
+            If none is give, it is assumend one is predicting from the last step
         further_steps: integer
-                How many steps must be predicted from 'from_step'/last step onwards
+            How many steps must be predicted from 'from_step'/last step onwards
 
         Results
         -------
         return: ndarray(N, steps), ndarray(N, steps)
-                Mean and variance of the predictions
+            Mean and variance of the predictions
         """
         if option == 'asympt':
             mu, std2, _ = self.pred_asympt_all(xprime)
@@ -153,7 +153,7 @@ class FreezeThawGP(BaseModel):
         Parameters
         ----------
         sample: ndarray(Number_GP_hyperparameters, 1)
-        One sample from the collection of all samples of GP hyperparameters
+            One sample from the collection of all samples of GP hyperparameters
         """
         self.m_const = self.get_mconst()
         flex = self.X.shape[-1]
@@ -173,20 +173,20 @@ class FreezeThawGP(BaseModel):
         Parameters
         ----------
         x_train: ndarray(N, D)
-                The input training data.
+            The input training data.
         y_train: ndarray(N, dtype=object)
-                All training curves. Their number of steps can diverge
+            All training curves. Their number of steps can diverge
         hyper_configs: integer
-                The number of walkers
+            The number of walkers
         chain_length: integer
-                The number of chain steps 
+            The number of chain steps 
         burnin_steps: integer
-                The number of MCMC burning steps
+            The number of MCMC burning steps
 
         Results
         -------
         samples: ndarray(hyper_configs, number_gp_hypers)
-                The desired number of samples for all GP hyperparameters
+            The desired number of samples for all GP hyperparameters
         """
 
         # number of length scales
@@ -256,7 +256,7 @@ class FreezeThawGP(BaseModel):
         Results
         -------
         marginal likelihood: float
-                the resulting marginal likelihood
+            the resulting marginal likelihood
         """
 
         x = self.x_train
@@ -487,17 +487,17 @@ class FreezeThawGP(BaseModel):
         Parameters
         ----------
         xprime: ndarray(*, D)
-                        the new configurations for which the mean and the std2 are being predicted
+            the new configurations for which the mean and the std2 are being predicted
 
         Returns
         -------
         mean: ndarray(*,1)
-                  predicted mean for every new configuration in xprime
+            predicted mean for every new configuration in xprime
         std2: ndarray(*,1)
-                  predicted std2 for every new configuration in xprime
+            predicted std2 for every new configuration in xprime
         divby: integer
-                   number of GP hyperparameter samples which deliver acceptable results for mean
-                   and std2. 
+            number of GP hyperparameter samples which deliver acceptable results for mean
+            and std2. 
         """
         if xprime is not None:
             self.x_test = xprime
@@ -718,8 +718,8 @@ class FreezeThawGP(BaseModel):
         Returns
         -------
         y_vec: ndarray(T,1)
-                An array containing all loss measurements of all training curves. They need
-                to be stacked in the same order as in the configurations array x_train
+            An array containing all loss measurements of all training curves. They need
+            to be stacked in the same order as in the configurations array x_train
         """
         y_vec = np.array([y[0]])
         for i in xrange(1, y.shape[0]):
@@ -734,12 +734,12 @@ class FreezeThawGP(BaseModel):
         Parameters
         ----------
         y: ndarray(N, dtype=object)
-           All training curves stacked together
+            All training curves stacked together
 
         Returns
         -------
         O: ndarray(T,N)
-                Matrix O is used in several computations in the BO framework, specially in the marginal likelihood
+            Matrix O is used in several computations in the BO framework, specially in the marginal likelihood
         """
         O = block_diag(np.ones((y[0].shape[0], 1)))
 
@@ -754,15 +754,15 @@ class FreezeThawGP(BaseModel):
         Parameters
         ----------
         x: ndarray
-                Configurations of hyperparameters, each one of shape D
+            Configurations of hyperparameters, each one of shape D
         xprime: ndarray
-                Configurations of hyperparameters. They could be the same or different than x, 
-                depending on which covariace is being built
+            Configurations of hyperparameters. They could be the same or different than x, 
+            depending on which covariace is being built
 
         Returns
         -------
         ndarray
-                The covariance of x and xprime
+            The covariance of x and xprime
         """
         # print 'x.shape: ', x.shape
         # print 'xprime.shape: ', xprime.shape
@@ -795,14 +795,14 @@ class FreezeThawGP(BaseModel):
         Parameters
         ----------
         t: ndarray
-                learning curve steps
+            learning curve steps
         tprime: ndarray
-                learning curve steps. They could be the same or different than t, depending on which covariace is being built
+            learning curve steps. They could be the same or different than t, depending on which covariace is being built
 
         Returns
         -------
         ndarray
-                The covariance of t and tprime
+            The covariance of t and tprime
         """
 
         try:
@@ -862,7 +862,7 @@ class FreezeThawGP(BaseModel):
         Parameters
         ----------
         y: ndarray(N, dtype=object)
-           All training curves stacked together
+            All training curves stacked together
 
         Returns
         -------
@@ -918,10 +918,18 @@ class FreezeThawGP(BaseModel):
     def inverse_chol(self, K=None, Chl=None):
         """ 
         One can use this function for calculating the inverse of K through cholesky decomposition
+        
+        Parameters
+        ----------
+        K: ndarray
+            covariance K
+        Chl: ndarray
+            cholesky decomposition of K
 
-        :param K: covariance K
-        :param Chl: cholesky decomposition of K
-        :return: the inverse of K
+        Returns
+        -------
+        ndarray 
+            the inverse of K
         """
         if Chl is not None:
             chol = Chl
@@ -949,12 +957,12 @@ class FreezeThawGP(BaseModel):
         Parameters
         ----------
         K: ndarray
-           Its dimensions depend on the inputs x for the inputs. len(K.shape)==2
+            Its dimensions depend on the inputs x for the inputs. len(K.shape)==2
 
         Returns
         -------
         chol: ndarray(K.shape[0], K.shape[1])
-                  The cholesky decomposition of K
+            The cholesky decomposition of K
         """
         
         # print 'K: ', K

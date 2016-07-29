@@ -55,11 +55,12 @@ class FreezeThawGP(BaseModel):
         """
 
         self.X = x_train
-        self.y = y_train
+        self.ys = y_train
         self.x_train = x_train
         self.y_train = y_train
         self.x_test = x_test
         self.y_test = y_test
+        self.Y = None
         
         self.hyper_configs = hyper_configs
         self.chain_length = chain_length
@@ -73,12 +74,22 @@ class FreezeThawGP(BaseModel):
         self.lnPrior = LognormalPrior(sigma=0.1, mean=0.0)
         self.hPrior = HorseshoePrior()
 
+        if x_train is not None:
+            self.C_samples = np.zeros(
+                (self.hyper_configs, self.x_train.shape[0], self.x_train.shape[0]))
+            self.mu_samples = np.zeros(
+                (self.hyper_configs, self.x_train.shape[0], 1))
+            self.activated = False
+
+    def actualize(self):
         self.C_samples = np.zeros(
             (self.hyper_configs, self.x_train.shape[0], self.x_train.shape[0]))
         self.mu_samples = np.zeros(
             (self.hyper_configs, self.x_train.shape[0], 1))
         self.activated = False
 
+
+    
     
     def train(self, X=None, Y=None, do_optimize=True):
         """
@@ -97,14 +108,14 @@ class FreezeThawGP(BaseModel):
         if X is not None:
             self.X = X
         if Y is not None:
-            self.Y = Y
+            self.ys = Y
 
         if do_optimize:
-            sampleSet = self.create_configs(x_train=self.X, y_train=self.y, hyper_configs=self.hyper_configs, chain_length=self.chain_length, burnin_steps=self.burnin_steps)
+            sampleSet = self.create_configs(x_train=self.X, y_train=self.ys, hyper_configs=self.hyper_configs, chain_length=self.chain_length, burnin_steps=self.burnin_steps)
         self.samples = sampleSet
 
     
-    def predict(self, xprime=None, option='asympt', conf_nr=0, from_step=None, further_steps=1):
+    def predict(self, xprime=None, option='asympt', conf_nr=0, from_step=None, further_steps=1, full_cov=False):
         """
         Predict using one of thre options: (1) predicion of the asymtote given a new configuration,
         (2) prediction of a new step of an old configuration, (3) prediction of steps of a curve of 
@@ -130,7 +141,10 @@ class FreezeThawGP(BaseModel):
             Mean and variance of the predictions
         """
         if option == 'asympt':
-            mu, std2, _ = self.pred_asympt_all(xprime)
+            if not full_cov:
+                mu, std2, _ = self.pred_asympt_all(xprime)
+            else:
+                mu, std2, _, cov = self.pred_asympt_all(xprime, full_cov=full_cov)
         elif option == 'old': 
             if from_step is None:
                 mu, std2, _ = self.pred_old_all(
@@ -142,7 +156,15 @@ class FreezeThawGP(BaseModel):
             mu, std2 = self.pred_new_all(
                 steps=further_steps, xprime=xprime, asy=True)
 
-        return mu, std2
+        if type(mu) != np.ndarray:
+            mu = np.array([[mu]])
+        elif len(mu.shape)==1:
+            mu = mu[:,None]
+
+        if not full_cov:
+            return mu, std2
+        else:
+            return mu, cov
 
 
 
@@ -336,14 +358,9 @@ class FreezeThawGP(BaseModel):
         #y_minus_Om = y_vec - O*self.m_const
         y_minus_Om = y_vec - np.dot(O, self.m_const)
 
-        # print 'np.dot(y_minus_Om.T, np.dot(kt_inv, y_minus_Om)): ', np.dot(y_minus_Om.T, np.dot(kt_inv, y_minus_Om))
-        # print 'np.dot(gamma.T, np.dot(kx_inv_plus_L_inv, gamma)): ', np.dot(gamma.T, np.dot(kx_inv_plus_L_inv, gamma))
-        # print 'self.nplog(np.linalg.det(kx)): ',
-        # self.nplog(np.linalg.det(kx))
+
         kt = kt / 1000.
-        # print 'self.nplog(np.linalg.det(kt)): ', self.nplog(np.linalg.det(kt))
-        # print 'self.nplog(np.linalg.det(kx_inv_plus_L)): ',
-        # self.nplog(np.linalg.det(kx_inv_plus_L))
+ 
         logP = -(1 / 2.) * np.dot(y_minus_Om.T, np.dot(kt_inv, y_minus_Om)) + (1 / 2.) * np.dot(gamma.T, np.dot(kx_inv_plus_L_inv, gamma))\
                - (1 / 2.) * (self.nplog(np.linalg.det(kx_inv_plus_L)) + self.nplog(np.linalg.det(kx)
                                                                                    ) + self.nplog(np.linalg.det(kt)))  # + const #* Where does const come from?
@@ -351,23 +368,7 @@ class FreezeThawGP(BaseModel):
         if logP is None or str(logP) == str(np.nan):
             #print 'failed: logP'
             return -np.inf
-        # print 'logP: ', logP
-        # print 'self.prob_uniform(theta_d): ', self.prob_uniform(theta_d)
-        # print 'self.prob_norm(np.array([theta0, alpha, beta])): ', self.prob_norm(np.array([theta0, alpha, beta]))
-        # print 'self.prob_horse(np.array([self.noiseHyper, self.noiseCurve])):
-        # ', self.prob_horse(np.array([self.noiseHyper, self.noiseCurve]))
 
-        # if not self.horse:
-            # lp = logP + self.prob_uniform(theta_d) + self.prob_norm(np.array([theta0, alpha, beta])) + self.prob_noise(np.array([self.noiseHyper, self.noiseCurve]))# + self.prob_uniform_mconst(m_const)
-        # else:
-            #lp = logP + self.prob_uniform(theta_d) + self.prob_norm(np.array([theta0, alpha, beta])) + self.prob_horse(np.array([self.noiseHyper, self.noiseCurve]))
-
-        #if not self.horse:
-            #lp = logP + np.sum(self.uPrior.lnprob(theta_d)) + np.sum(self.lnPrior.lnprob(np.array(
-                #[theta0, alpha, beta]))) + np.sum(self.lnPrior.lnprob(np.array([self.noiseHyper, self.noiseCurve])))
-        #else:
-            #lp = logP + np.sum(self.uPrior.lnprob(theta_d)) + np.sum(self.lnPrior.lnprob(np.array(
-                #[theta0, alpha, beta]))) + np.sum(self.hPrior.lnprob(np.array([self.noiseHyper, self.noiseCurve])))
         
         lp = logP + np.sum(self.uPrior.lnprob(theta_d)) + np.sum(self.lnPrior.lnprob(np.array([theta0, alpha, beta]))) + np.sum(self.hPrior.lnprob(np.array([self.noiseHyper, self.noiseCurve])))
 
@@ -387,7 +388,7 @@ class FreezeThawGP(BaseModel):
 
         return m_const
 
-    def pred_asympt(self, xprime=None):
+    def pred_asympt(self, xprime, full_cov=False, show=False):
         """
         Given new configuration xprime, it predicts the probability distribution of
         the new asymptotic mean, with mean and covariance of the distribution
@@ -408,19 +409,22 @@ class FreezeThawGP(BaseModel):
         mu: ndarray(N,1)
             The mean of the posterior distribution. It is used several times in the BO framework
         """
-
+        
+        #print 'xprime in pred_asympt: ', xprime  
         if xprime is not None:
             self.xprime = xprime
 
         theta_d = np.ones(self.X.shape[-1])
 
-        kx_star = self.kernel_hyper(self.X, self.xprime)
+        kx_star = self.kernel_hyper(self.X, self.xprime, show=show)
 
         if kx_star is None:
+            if show: print 'kx_star is None'
             return None
 
         kx = self.kernel_hyper(self.X, self.X)
         if kx is None:
+            if show: print 'kx is None'
             return None
 
         if len(xprime.shape) > 1:
@@ -434,6 +438,7 @@ class FreezeThawGP(BaseModel):
 
         kx_inv = self.invers(kx)
         if kx_inv is None:
+            if show: 'kx_inv is None' 
             return None
 
         m_const = self.m_const
@@ -441,6 +446,7 @@ class FreezeThawGP(BaseModel):
         Lambda, gamma = self.lambdaGamma(m_const)
         #print 'Lambda.shape: ', Lambda
         if Lambda is None or gamma is None:
+            if show: 'Lambda is None or gamma is None' 
             return None
 
 
@@ -448,6 +454,7 @@ class FreezeThawGP(BaseModel):
 
         C = self.invers(C_inv)
         if C is None:
+            if show: 'C is None'
             return None
 
         self.C = C
@@ -456,15 +463,24 @@ class FreezeThawGP(BaseModel):
 
         self.mu = mu
 
+        #print 'm_xstar: ', m_xstar.shape
+        #print 'kx_star: ', kx_star.shape
+        #print 'mu: ', mu.shape
+        #print 'kx_inv: ', kx_inv.shape
+        #print 'self.m_cost: ', self.m_const.shape
+
         mean = m_xstar + np.dot(kx_star.T, np.dot(kx_inv, mu - self.m_const))
+        #print 'mean in pred_asympt: ', mean.shape
         
         #Now calculate the covariance
         kstar_star = self.kernel_hyper(self.xprime, self.xprime)
         if kstar_star is None:
+            if show: print 'kstar_star is None'
             return None
 
         Lambda_inv = self.invers(Lambda)
         if Lambda_inv is None:
+            if show: print 'Lambda_inv is None'
             return None
 
         kx_lamdainv = kx + Lambda_inv
@@ -472,14 +488,19 @@ class FreezeThawGP(BaseModel):
         kx_lamdainv_inv = self.invers(kx_lamdainv)
 
         if kx_lamdainv_inv is None:
+            if show: print 'kx_lamdainv_inv is None'
             return None
 
         cov= kstar_star - np.dot(kx_star.T, np.dot(kx_lamdainv_inv, kx_star))
+        #print 'in pred_asympt cov: ', cov
         std2 = np.diagonal(cov).reshape(-1, 1)
 
-        return mean, std2, C, mu
+        if not full_cov:
+            return mean, std2, C, mu
+        else:
+            return mean, std2, C, mu, cov
 
-    def pred_asympt_all(self, xprime=None):
+    def pred_asympt_all(self, xprime, full_cov=False):
         """
         Predicts mean and std2 for new configurations xprime. The prediction is averaged for
         all GP hyperparameter samples. They are integrated out.
@@ -499,62 +520,128 @@ class FreezeThawGP(BaseModel):
             number of GP hyperparameter samples which deliver acceptable results for mean
             and std2. 
         """
-        if xprime is not None:
-            self.x_test = xprime
+        #if xprime is not None:
+        #    self.x_test = xprime
+        if not full_cov:
+            samples_val = []
+            C_valid = []
+            mu_val = []
+            means_val = []
+            std2s_val = []
 
-        samples_val = []
-        C_valid = []
-        mu_val = []
-        means_val = []
-        std2s_val = []
+            divby = self.samples.shape[0]
 
-        divby = self.samples.shape[0]
+            for i in xrange(self.samples.shape[0]):
+                self.setGpHypers(self.samples[i])
+                #print 'xprime: ', xprime
+                pre = self.pred_asympt(xprime)
+                #print 'pre: ', pre
+                if pre is not None:
+                    mean_one, std2_one, C, mu = pre
+                    # print 'mean_one: ', mean_one
+                    means_val.append(mean_one.flatten())
+                    # print 'means_val: ', means_val
+                    std2s_val.append(std2_one.flatten())
+                    C_valid.append(C)
+                    mu_val.append(mu)
+                    samples_val.append(self.samples[i])
+                else:
+                    divby -= 1
+                    # print 'bad: ', divby
 
-        for i in xrange(self.samples.shape[0]):
-            self.setGpHypers(self.samples[i])
-            pre = self.pred_asympt(xprime)
-            # print 'pre: ', pre
-            if pre is not None:
-                mean_one, std2_one, C, mu = pre
-                # print 'mean_one: ', mean_one
-                means_val.append(mean_one.flatten())
-                # print 'means_val: ', means_val
-                std2s_val.append(std2_one.flatten())
-                C_valid.append(C)
-                mu_val.append(mu)
-                samples_val.append(self.samples[i])
-            else:
-                divby -= 1
-                # print 'bad: ', divby
+            mean_temp = np.zeros((divby, xprime.shape[0]))
+            std2_temp = np.zeros((divby, xprime.shape[0]))
 
-        mean_temp = np.zeros((divby, xprime.shape[0]))
-        std2_temp = np.zeros((divby, xprime.shape[0]))
+            if(divby < self.samples.shape[0]):
+                self.C_samples = np.zeros(
+                    (divby, self.C_samples.shape[1], self.C_samples.shape[2]))
+                self.mu_samples = np.zeros(
+                    (divby, self.mu_samples.shape[1], self.mu_samples.shape[2]))
+                self.samples = np.zeros((divby, self.samples.shape[1]))
 
-        if(divby < self.samples.shape[0]):
-            self.C_samples = np.zeros(
-                (divby, self.C_samples.shape[1], self.C_samples.shape[2]))
-            self.mu_samples = np.zeros(
-                (divby, self.mu_samples.shape[1], self.mu_samples.shape[2]))
-            self.samples = np.zeros((divby, self.samples.shape[1]))
+            for j in xrange(divby):
+                #print 'means_val[j]: ', means_val[j]
+                mean_temp[j, :] = means_val[j]
+                std2_temp[j, :] = std2s_val[j]
+                self.C_samples[j, ::] = C_valid[j]
+                self.mu_samples[j, ::] = mu_val[j]
+                self.samples[j, ::] = samples_val[j]
 
-        for j in xrange(divby):
-            mean_temp[j, :] = means_val[j]
-            std2_temp[j, :] = std2s_val[j]
-            self.C_samples[j, ::] = C_valid[j]
-            self.mu_samples[j, ::] = mu_val[j]
-            self.samples[j, ::] = samples_val[j]
+            mean = np.mean(mean_temp, axis=0)
+            std2 = np.mean(std2_temp, axis=0) + np.mean(mean_temp**2, axis=0)
+            std2 -= mean**2
 
-        mean = np.mean(mean_temp, axis=0)
-        std2 = np.mean(std2_temp, axis=0) + np.mean(mean_temp**2, axis=0)
-        std2 -= mean**2
+            self.activated = True
+            self.asy_mean = mean
 
-        self.activated = True
-        self.asy_mean = mean
+            return mean, std2, divby
+        
+        else:
+            samples_val = []
+            C_valid = []
+            mu_val = []
+            means_val = []
+            std2s_val = []
+            cov_val = []
 
-        return mean, std2, divby
+            divby = self.samples.shape[0]
+
+            for i in xrange(self.samples.shape[0]):
+                self.setGpHypers(self.samples[i])
+                #print 'xprime: ', xprime
+                pre = self.pred_asympt(xprime, full_cov=full_cov, show=False)
+                #print 'in pred_asympt pre: ', pre
+                if pre is not None:
+                    mean_one, std2_one, C, mu, cov = pre
+                    #print 'in pred_asympt_all cov: ', cov
+                    # print 'mean_one: ', mean_one
+                    means_val.append(mean_one.flatten())
+                    # print 'means_val: ', means_val
+                    std2s_val.append(std2_one.flatten())
+                    C_valid.append(C)
+                    mu_val.append(mu)
+                    samples_val.append(self.samples[i])
+                    cov_val.append(cov)
+                else:
+                    divby -= 1
+                    # print 'bad: ', divby
+
+            mean_temp = np.zeros((divby, xprime.shape[0]))
+            std2_temp = np.zeros((divby, xprime.shape[0]))
+            #print 'in pred_asympt cov_val: ', cov_val
+            cov_temp = np.zeros((divby, cov_val[0].shape[0], cov_val[0].shape[1]))
+
+            if(divby < self.samples.shape[0]):
+                self.C_samples = np.zeros(
+                    (divby, self.C_samples.shape[1], self.C_samples.shape[2]))
+                self.mu_samples = np.zeros(
+                    (divby, self.mu_samples.shape[1], self.mu_samples.shape[2]))
+                self.samples = np.zeros((divby, self.samples.shape[1]))
+
+            for j in xrange(divby):
+                #print 'means_val[j]: ', means_val[j]
+                mean_temp[j, :] = means_val[j]
+                std2_temp[j, :] = std2s_val[j]
+                self.C_samples[j, ::] = C_valid[j]
+                self.mu_samples[j, ::] = mu_val[j]
+                self.samples[j, ::] = samples_val[j]
+                cov_temp[j,::] = cov_val[j] 
+
+            mean = np.mean(mean_temp, axis=0)
+            std2 = np.mean(std2_temp, axis=0) + np.mean(mean_temp**2, axis=0)
+            std2 -= mean**2
+            cov = np.mean(cov_temp, axis=0)
+
+            self.activated = True
+            self.asy_mean = mean
+
+            return mean, std2, divby, cov
 
     def pred_old(self, t, tprime, yn, mu_n=None, Cnn=None):
         yn = yn.reshape(-1, 1)
+        
+        #print 't: ', t.shape
+        #print 'tprime: ', tprime.shape
 
         ktn = self.kernel_curve(t, t)
         if ktn is None:
@@ -576,8 +663,15 @@ class FreezeThawGP(BaseModel):
         if yn.shape[0] > ktn_inv.shape[0]:
             yn = yn[:ktn_inv.shape[0]]
 
-        mean = np.dot(ktn_star.T, np.dot(ktn_inv, yn)) + np.dot(Omega, mu_n)
+        #print 'in pred_old ktn_star.T: ', ktn_star.T.shape
+        #print 'in pred_old ktn_inv: ', ktn_inv.shape
+        #print 'in pred_old yn: ', yn.shape
+        #print 'in pred_old Omega: ', Omega.shape
+        #print 'in pred_old mu_n: ', mu_n
 
+        #mean = np.dot(ktn_star.T, np.dot(ktn_inv, yn)) + np.dot(Omega, mu_n)
+        mean = np.dot(ktn_star.T, np.dot(ktn_inv, yn)) + Omega*mu_n
+        #print 'mean: ', mean.shape 
         # covariance
         ktn_star_star = self.kernel_curve(tprime, tprime)
         # print 'ktn.shape: ', ktn.shape
@@ -632,9 +726,11 @@ class FreezeThawGP(BaseModel):
                     divby -= 1
 
             mean_temp = np.zeros((divby, steps))
+            #print 'mean_temp: ', mean_temp.shape
             std2_temp = np.zeros((divby, steps))
 
             for j in xrange(divby):
+                #print 'means_val[j]: ', means_val[j]
                 mean_temp[j, :] = means_val[j]
                 std2_temp[j, :] = std2s_val[j]
 
@@ -650,7 +746,8 @@ class FreezeThawGP(BaseModel):
 
     def pred_new(self, step, asy_mean, y=None):
         if y is not None:
-            self.y = y
+            #self.y = y
+            y_now = y
 
         if asy_mean is not None:
             self.asy_mean = asy_mean
@@ -664,8 +761,10 @@ class FreezeThawGP(BaseModel):
             k_x_x + self.noiseCurve * np.eye(k_x_x.shape[0]))
 
         # Exactly why:
-        self.y = np.array([1.])
-        sol = np.linalg.solve(chol, self.y)
+        #self.y = np.array([1.])
+        #sol = np.linalg.solve(chol, self.y)
+        y_now = np.array([1.])
+        sol = np.linalg.solve(chol, y_now)
         sol = np.linalg.solve(chol.T, sol)
 
         k_xstar_xstar = self.kernel_curve(tprime, tprime)
@@ -747,7 +846,7 @@ class FreezeThawGP(BaseModel):
             O = block_diag(O, np.ones((y[i].shape[0], 1)))
         return O
 
-    def kernel_hyper(self, x, xprime):
+    def kernel_hyper(self, x, xprime, show=False):
         """
         Calculates the kernel for the GP over configuration hyperparameters
 
@@ -774,21 +873,28 @@ class FreezeThawGP(BaseModel):
 
         if len(x.shape)==1:
             x = x.reshape(1,len(x))
+
+        if show: 
+            print 'in kernel_hyper xprime: ', xprime.shape, ' and x: ', x.shape
         try:
             r2 = np.sum(((x[:, np.newaxis] - xprime)**2) /
                 self.theta_d**2, axis=-1)
-            # print 'r2: ', r2
+            if show:
+                print 'in kernel_hyper r2: ', r2.shape
             fiveR2 = 5 * r2
-            result = self.theta0 *(1 + np.sqrt(fiveR2) + (5 / 3.) * fiveR2)* np.exp(-np.sqrt(fiveR2))
-            # print 'result1: ', result
-            result = result + \
-                np.eye(M=result.shape[0], N=result.shape[1]) * self.noiseHyper
-            # print 'result2: ', result
+            result = self.theta0 *(1 + np.sqrt(fiveR2) + (5/3.)*fiveR2)*np.exp(-np.sqrt(fiveR2))
+            if show: print 'in kernel_hyper result1: ', result.shape
+            if result.shape[1] > 1:
+                toadd = np.eye(N=result.shape[0], M=result.shape[1])
+                if show: print 'in kernel_hyper toadd: ', toadd.shape, ' noiseHyper: ', self.noiseHyper 
+                result = result +  toadd*self.noiseHyper
+            if show:
+                print 'in kernel_hyper result2: ', result.shape
             return result
         except:
             return None
 
-    def kernel_curve(self, t, tprime, alpha, beta):
+    def kernel_curve(self, t, tprime, alpha=1., beta=1.):
         """
         Calculates the kernel for the GP over training curves
 
@@ -811,7 +917,7 @@ class FreezeThawGP(BaseModel):
             # print 'result1 in kernel_curve: ', result
             #result = result + np.eye(result.shape)*self.noiseCurve
             result = result + \
-                np.eye(M=result.shape[0], N=result.shape[1]) * self.noiseCurve
+                np.eye(N=result.shape[0], M=result.shape[1]) * self.noiseCurve
             # print 'result2 in kernel_curve: ', result
             return result
         except:
@@ -822,16 +928,16 @@ class FreezeThawGP(BaseModel):
         Difference here is that the cholesky decomposition is calculated just once for the whole Kt and thereafter
         we solve the linear system for each Ktn.
         """
-        Kt = self.getKt(self.y)
+        Kt = self.getKt(self.ys)
         # print 'Kt.shape: ', Kt.shape
         self.Kt_chol = self.calc_chol(Kt)
         if self.Kt_chol is None:
             return None, None
-        dim = self.y.shape[0]
+        dim = self.ys.shape[0]
         Lambda = np.zeros((dim, dim))
         gamma = np.zeros((dim, 1))
         index = 0
-        for i, yn in enumerate(self.y):
+        for i, yn in enumerate(self.ys):
             lent = yn.shape[0]
             ktn_chol = self.Kt_chol[index:index + lent, index:index + lent]
             # print 'ktn_chol.shape: ', ktn_chol.shape

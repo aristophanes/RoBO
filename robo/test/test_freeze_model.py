@@ -41,7 +41,7 @@ class TestGaussianProcess(unittest.TestCase):
         #m, v, _ = model.pred_hyper(x_test)
         m_asympt, v_asympt = model.predict(xprime=x_test, option='asympt')
 
-        assert len(m_asympt.shape) == 1
+        assert len(m_asympt.shape) == 2
         assert m_asympt.shape[0] == x_test.shape[0]
         assert len(v_asympt.shape) == 1
         assert v_asympt.shape[0] == x_test.shape[0]
@@ -49,14 +49,14 @@ class TestGaussianProcess(unittest.TestCase):
 
         m_old,v_old = model.predict(xprime=None, option='old', conf_nr=0, from_step=None, further_steps=1)
 
-        assert len(m_old.shape) == 1
+        assert len(m_old.shape) == 2
         assert m_old.shape[0] == 1
         assert len(v_old.shape) == 1
         assert v_old.shape[0] == 1
 
         m_new,v_new = model.predict(xprime=np.array([x_test[0]]), option='new', further_steps=1)
 
-        assert len(m_new.shape) == 1
+        assert len(m_new.shape) == 2
         assert m_new.shape[0] == np.array([x_test[0]]).shape[0]
         assert len(v_new.shape) == 1
         assert v_new.shape[0] == np.array([x_test[0]]).shape[0]

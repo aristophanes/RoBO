@@ -109,19 +109,25 @@ class InformationGainMC(BaseAcquisitionFunction):
         if len(self.lmb.shape) == 1:
             self.lmb = self.lmb[:, None]
 
+    def actualize(self, zb, lmb):
+        self.zb = zb
+        self.lmb = lmb
+
+
     def sampling_acquisition_wrapper(self, x):
         if np.any(x < self.X_lower) or np.any(x > self.X_upper):
             return -np.inf
         return self.sampling_acquisition(np.array([x]))[0]
 
-    def update(self, model):
+    def update(self, model, calc_repr=False):
         self.model = model
 
         #self.sn2 = self.model.get_noise()
 
         # Sample representer points
         self.sampling_acquisition.update(model)
-        self.sample_representer_points()
+        if calc_repr:
+            self.sample_representer_points()
 
         # Omega values which are needed for the innovations
         # by sampling from a uniform grid
@@ -132,7 +138,7 @@ class InformationGainMC(BaseAcquisitionFunction):
         # Compute current posterior belief at the representer points
         self.Mb, self.Vb = self.model.predict(self.zb, full_cov=True)
         #self.Mb, self.Vb = self.model.predict(self.zb)
-        self.pmin = mc_part1.joint_pmin(self.Mb, self.Vb, self.Nf)
+        self.pmin = mc_part.joint_pmin(self.Mb, self.Vb, self.Nf)
         self.logP = np.log(self.pmin)
 
     def innovations(self, x, rep):
@@ -169,4 +175,4 @@ class InformationGainMC(BaseAcquisitionFunction):
         Vb_new = self.Vb + dvdb
 
         # Return the fantasized pmin
-        return mc_part1.joint_pmin(Mb_new, Vb_new, self.Nf)
+        return mc_part.joint_pmin(Mb_new, Vb_new, self.Nf)

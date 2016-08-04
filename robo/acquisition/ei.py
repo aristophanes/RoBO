@@ -99,7 +99,7 @@ class EI(BaseAcquisitionFunction):
                 return np.array([[f]]), np.array([df])
             else:
                 return np.array([[0]])
-
+                
         m, v = self.model.predict(X)
 
         # Use the best seen observation as incumbent

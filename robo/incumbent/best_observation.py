@@ -49,7 +49,6 @@ class BestObservation(IncumbentEstimation):
         np.ndarray(1,1)
             Incumbent value
         """
-
         best = np.argmin(self.model.Y)
         incumbent = self.model.X[best]
         incumbent_value = self.model.Y[best]

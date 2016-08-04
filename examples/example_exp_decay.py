@@ -1,11 +1,8 @@
 import numpy as np
-from robo.initial_design.init_random_uniform import init_random_uniform
 from robo.task.base_task import BaseTask
-from robo.models.freeze_thaw_model1 import FreezeThawGP
+from robo.models.freeze_thaw_model import FreezeThawGP
 from robo.maximizers.direct import Direct
 from robo.acquisition.ei import EI
-from robo.acquisition.information_gain_mc_freeze import InformationGainMC
-from scipy.stats import norm
 from robo.solver.freeze_thaw_bayesian_optimization import FreezeThawBO
 from robo.task.synthetic_functions.exp_decay import ExpDecay
 

@@ -21,7 +21,10 @@ from robo.priors.base_prior import BasePrior, TophatPrior, \
 LognormalPrior, HorseshoePrior, UniformPrior
 
 logger = logging.getLogger(__name__)
-
+"""
+Compared to version 0 trying to have the possibility of choosing which type
+of lambda and gamma calculation is desired
+"""
 class FreezeThawGP(BaseModel):
 
     def __init__(self,
@@ -35,7 +38,8 @@ class FreezeThawGP(BaseModel):
                  burnin_steps=100,
                  invChol=True,
                  horse=True, 
-                 samenoise=True):
+                 samenoise=True,
+                 lg=True):
         """
         Interface to the freeze-thawn GP library. The GP hyperparameter are obtained
         by integrating out the marginal loglikelihood over the GP hyperparameters.
@@ -80,6 +84,8 @@ class FreezeThawGP(BaseModel):
             self.mu_samples = np.zeros(
                 (self.hyper_configs, self.x_train.shape[0], 1))
             self.activated = False
+
+        self.lg = lg
 
     def actualize(self):
         self.C_samples = np.zeros(
@@ -131,7 +137,7 @@ class FreezeThawGP(BaseModel):
             The index of an old configuration of which a new step is predicted
         from_step: integer
             The step from which the prediction begins for an old configuration.
-            If none is give, it is assumend one is predicting from the last step
+            If none is given, it is assumend one is predicting from the last step
         further_steps: integer
             How many steps must be predicted from 'from_step'/last step onwards
 
@@ -295,13 +301,11 @@ class FreezeThawGP(BaseModel):
             theta0, alpha, beta, noise = theta[flex:]
             noiseHyper = noiseCurve = noise
 
-        theta_d = np.exp(theta_d)
+        self.theta_d = np.exp(theta_d)
 
         self.noiseHyper = exp(noiseHyper)
 
         self.noiseCurve = exp(noiseCurve)
-
-        self.theta_d = theta_d
 
         self.theta0 = np.exp(theta0)
         self.alpha = np.exp(alpha)
@@ -321,7 +325,10 @@ class FreezeThawGP(BaseModel):
             return -np.inf
         # print 'kx: ', kx.shape
 
-        Lambda, gamma = self.lambdaGamma(self.m_const)
+        if self.lg:
+            Lambda, gamma = self.lambdaGamma(self.m_const)
+        else:
+            Lambda, gamma = self.gammaLambda(self.m_const)
         if Lambda is None or gamma is None:
             # print 'failed: lambda or gamma'
             return -np.inf
@@ -370,13 +377,14 @@ class FreezeThawGP(BaseModel):
             return -np.inf
 
         
-        lp = logP + np.sum(self.uPrior.lnprob(theta_d)) + np.sum(self.lnPrior.lnprob(np.array([theta0, alpha, beta]))) + np.sum(self.hPrior.lnprob(np.array([self.noiseHyper, self.noiseCurve])))
+        #lp = logP + np.sum(self.uPrior.lnprob(theta_d)) + np.sum(self.lnPrior.lnprob(np.array([theta0, alpha, beta]))) + np.sum(self.hPrior.lnprob(np.array([self.noiseHyper, self.noiseCurve])))
+        lp = logP + np.sum(self.uPrior.lnprob(theta_d)) + np.sum(self.lnPrior.lnprob(np.array([theta0, alpha, beta]))) + self.hPrior.lnprob(np.array([self.noiseHyper]))
 
         if lp is None or str(lp) == str(np.nan):
             #print 'failed: lp'
             return -np.inf
 
-        # print 'lp: ', lp
+        #print 'lp: ', lp
         return lp
 
     def get_mconst(self):
@@ -438,15 +446,18 @@ class FreezeThawGP(BaseModel):
 
         kx_inv = self.invers(kx)
         if kx_inv is None:
-            if show: 'kx_inv is None' 
+            if show: print 'kx_inv is None' 
             return None
 
         m_const = self.m_const
         #print 'm_const.shape: ', m_const.shape
-        Lambda, gamma = self.lambdaGamma(m_const)
+        if self.lg:
+            Lambda, gamma = self.lambdaGamma(self.m_const)
+        else:
+            Lambda, gamma = self.gammaLambda(self.m_const)
         #print 'Lambda.shape: ', Lambda
         if Lambda is None or gamma is None:
-            if show: 'Lambda is None or gamma is None' 
+            if show: print 'Lambda is None or gamma is None' 
             return None
 
 
@@ -454,7 +465,7 @@ class FreezeThawGP(BaseModel):
 
         C = self.invers(C_inv)
         if C is None:
-            if show: 'C is None'
+            if show: print 'C is None'
             return None
 
         self.C = C
@@ -763,7 +774,8 @@ class FreezeThawGP(BaseModel):
         # Exactly why:
         #self.y = np.array([1.])
         #sol = np.linalg.solve(chol, self.y)
-        y_now = np.array([1.])
+        #y_now = np.array([1.])
+        y_now = np.array([100.])
         sol = np.linalg.solve(chol, y_now)
         sol = np.linalg.solve(chol.T, sol)
 
@@ -799,7 +811,7 @@ class FreezeThawGP(BaseModel):
             self.setGpHypers(self.samples[i])
 
             mean_one, std2_one = self.pred_new(
-                steps, asy_mean[1], y)
+                steps, asy_mean[0], y)
             mean_temp[i, :] = mean_one.flatten()
             std2_temp[i, :] = std2_one.flatten()
 
@@ -882,7 +894,7 @@ class FreezeThawGP(BaseModel):
             if show:
                 print 'in kernel_hyper r2: ', r2.shape
             fiveR2 = 5 * r2
-            result = self.theta0 *(1 + np.sqrt(fiveR2) + (5/3.)*fiveR2)*np.exp(-np.sqrt(fiveR2))
+            result = self.theta0 *(1 + np.sqrt(fiveR2) + fiveR2/3.)*np.exp(-np.sqrt(fiveR2))
             if show: print 'in kernel_hyper result1: ', result.shape
             if result.shape[1] > 1:
                 toadd = np.eye(N=result.shape[0], M=result.shape[1])
@@ -950,6 +962,62 @@ class FreezeThawGP(BaseModel):
             Lambda[i, i] = np.dot(one_n.T, np.dot(ktn_inv, one_n))
             gamma[i, 0] = np.dot(one_n.T, np.dot(ktn_inv, yn - m_const[i]))
 
+        return Lambda, gamma
+
+    def gammaLambda(self, m_const):
+        '''
+        Calculates Lambda according to the following: Lamda = transpose(O)*inverse(Kt)*O
+        = diag(l1, l2,..., ln) =, where ln = transpose(1n)*inverse(Ktn)*1n
+        Calculates gamma according to the following: gamma = transpose(O)*inverse(Kt)*(y - Om),
+        where each gamma element gamma_n = transpose(1n)*inverse(Ktn)*(y_n -m_n)
+        
+        Parameters
+        ----------
+        m_const: float
+            the infered mean of f, used in the joint distribution of f and y.        
+        
+        Returns
+        -------
+        gamma: ndarray(N, 1)
+            gamma is used in several calculations in the BO framework
+        Lambda: ndarray(N, N)
+                Lamda is used in several calculations in the BO framework
+        '''
+        dim = self.ys.shape[0]
+        Lambda = np.zeros((dim, dim))
+        gamma = np.zeros((dim, 1))
+        index = 0
+
+        for yn in self.ys:
+            yn = yn.reshape(-1,1)
+            t = np.arange(1, yn.shape[0]+1)
+            #not yet using the optimized parameters here
+            ktn = self.kernel_curve(t, t)
+            if ktn == None:
+                return None
+            #chol_ktn = self.calc_chol2(ktn)
+            #if chol_ktn == None:
+                #return None
+            #ktn_inv = self.inverse(chol_ktn)
+            ktn_inv = self.invers(ktn)
+            if ktn_inv == None:
+                return None
+            one_n = np.ones((ktn.shape[0], 1))
+            onenT_ktnInv = np.dot(one_n.T, ktn_inv)
+            #Lambda[index, index] = np.dot(one_n.T, np.dot(ktn_inv, one_n))
+            #gamma[index, 0] = np.dot(one_n.T, np.dot(ktn_inv, yn - m_const))
+            #print 'onenT_ktnInv: ', onenT_ktnInv.shape
+            #print 'one_n: ', one_n.shape
+            #print 'yn: ', yn.shape
+            #print 'm_const: ', m_const
+            Lambda[index, index] = np.dot(onenT_ktnInv, one_n)
+            gamma[index, 0] = np.dot(onenT_ktnInv, yn - m_const[index])            
+            #if index == 0:
+                #Lambda = ktn_inv
+            #else:
+                #Lambda = block_diag(Lambda, ktn_inv)
+            index+=1
+        
         return Lambda, gamma
 
     def getKtn(self, yn):

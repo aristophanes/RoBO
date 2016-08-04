@@ -137,8 +137,11 @@ class FreezeThawBO(BaseSolver):
 			res = self.choose_next(X=self.basketOld_X, Y=self.basketOld_Y, do_optimize=True)
 			print 'res: ', res
 			ig = InformationGainMC(model=self.freezeModel, X_lower=self.task.X_lower, X_upper=self.task.X_upper, sampling_acquisition=EI)
-			ig.update(self.freezeModel)
+			ig.update(self.freezeModel, calc_repr=True)
 			H = ig.compute()
+			zb = deepcopy(ig.zb)
+			lmb = deepcopy(ig.lmb)
+			#H = 0
 			print 'H: ', H
 			# Fantasize over the old and the new configurations
 			nr_old = self.init_points
@@ -166,6 +169,7 @@ class FreezeThawBO(BaseSolver):
 				freezeModel.ys[i] = freezeModel.y_train[i] = y_i
 				freezeModel.Y[i, :] = y_i[-1]
 				ig1 = InformationGainMC(model=freezeModel, X_lower=self.task.X_lower, X_upper=self.task.X_upper, sampling_acquisition=EI)
+				ig1.actualize(zb, lmb)
 				ig1.update(freezeModel)
 				H1 = ig1.compute()
 				Hfant[i] = H1
@@ -186,6 +190,7 @@ class FreezeThawBO(BaseSolver):
 			    (freezeModel.mu_samples.shape[0], freezeModel.mu_samples.shape[1] + 1, 1))
 
 			ig1 = InformationGainMC(model=freezeModel, X_lower=self.task.X_lower, X_upper=self.task.X_upper, sampling_acquisition=EI)
+			ig1.actualize(zb, lmb)
 			ig1.update(freezeModel)
 			H1 = ig1.compute()
 			Hfant[-1] = H1

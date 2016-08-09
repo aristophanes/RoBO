@@ -209,7 +209,7 @@ class FreezeThawBO(BaseSolver):
 			    self.basketOld_Y[winner] = np.append(self.basketOld_Y[winner], ytplus1)
 			else:
 				ytplus1 = self.task.f(t=1, x=res[0])
-				replace = get_min_ei(freezeModel, self.basketOld_X, self.basketOld_Y)
+				replace = get_min_max_ei(freezeModel, self.basketOld_X, self.basketOld_Y)
 				self.basketOld_X[replace] = res[0]
 				self.basketOld_Y[replace] = np.array([ytplus1])
 
@@ -274,6 +274,48 @@ class FreezeThawBO(BaseSolver):
 		return x
 
 
+	def choose_next_ei(self, X=None, Y=None, do_optimize=True, N=6, M=3):
+		"""
+		Recommend a new configuration by maximizing the acquisition function
+
+		Parameters
+		----------
+		num_iterations: int
+		    Number of loops for choosing a new configuration
+		X: np.ndarray(N,D)
+		    Initial points that are already evaluated
+		Y: np.ndarray(N,1)
+		    Function values of the already evaluated points
+		N: integer
+		    Number of configuration samples
+		M: integer
+		    Chosen configurations
+		Returns
+		-------
+		np.ndarray(1,D)
+		    Suggested point
+		"""
+
+		initial_design = init_random_uniform
+
+		self.freezeModel.train(X, Y, do_optimize=do_optimize)
+
+		x = initial_design(self.task.X_lower, self.task.X_upper, N=N)
+
+		ei_list = np.zeros(x.shape[0])
+
+		for i in xrange(N):
+			ei_list = self.compute_ei(X=x[i,:], model=self.freezeModel, ys=Y, basketOld_X=X)
+
+		sort = np.argsort(ei_list)
+
+		highest_confs = x[sort][-M:]
+
+		return highest_confs
+
+
+
+
 def f(t, a=0.1, b=0.1, x=None):
 	k=1e3
 	if x is not None:
@@ -316,12 +358,16 @@ def compute_ei(X, model, ys, basketOld_X, par=0.0):
     print 'in compute ei f: ', f
     return f
 
-def get_min_ei(model, basketOld_X, basketOld_Y):
+def get_min_max_ei(model, basketOld_X, basketOld_Y, max=False):
     nr = basketOld_X.shape[0]
     eiList = np.zeros(nr)
     for i in xrange(nr):
         val = compute_ei(basketOld_X[i], model, basketOld_Y, basketOld_X)
-        # print'val in get_min_ei: ', val
+        # print'val in get_min_max_ei: ', val
         eiList[i] = val[0][0]
-    minIndex = np.argmin(eiList)
-    return minIndex
+    if not max:
+    	minIndex = np.argmin(eiList)
+    	return minIndex
+    else:
+    	maxIndex = np.argmax(eiList)
+    	return maxIndex

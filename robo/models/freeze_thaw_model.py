@@ -21,10 +21,7 @@ from robo.priors.base_prior import BasePrior, TophatPrior, \
 LognormalPrior, HorseshoePrior, UniformPrior
 
 logger = logging.getLogger(__name__)
-"""
-Compared to version 0 trying to have the possibility of choosing which type
-of lambda and gamma calculation is desired
-"""
+
 class FreezeThawGP(BaseModel):
 
     def __init__(self,

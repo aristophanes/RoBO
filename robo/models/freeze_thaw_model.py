@@ -801,14 +801,20 @@ class FreezeThawGP(BaseModel):
         else:
             asy_mean = self.asy_mean
 
+        if type(asy_mean) is np.ndarray:
+            asy_mean = asy_mean[0]
+
+
         mean_temp = np.zeros((self.samples.shape[0], steps))
         std2_temp = np.zeros((self.samples.shape[0], steps))
 
         for i in xrange(self.samples.shape[0]):
             self.setGpHypers(self.samples[i])
 
+            #mean_one, std2_one = self.pred_new(
+            #    steps, asy_mean[0], y)
             mean_one, std2_one = self.pred_new(
-                steps, asy_mean[0], y)
+                steps, asy_mean, y)
             mean_temp[i, :] = mean_one.flatten()
             std2_temp[i, :] = std2_one.flatten()
 

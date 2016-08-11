@@ -19,10 +19,27 @@ from scipy.stats import norm
 
 logger = logging.getLogger(__name__)
 
+"""
+Compared to version 0 with all logging and saving stuff
+"""
 
 class FreezeThawBO(BaseSolver):
 
-	def __init__(self, acquisition_func, freeze_thaw_model, maximize_func, task, initial_design=None, init_points=5, incumbent_estimation=None, basketOld_X=None, basketOld_Y=None, first_steps=3):
+	def __init__(self,
+		         acquisition_func,
+		         freeze_thaw_model,
+		         maximize_func,
+		         task,
+		         initial_design=None,
+		         init_points=5,
+		         incumbent_estimation=None,
+		         basketOld_X=None,
+		         basketOld_Y=None,
+		         first_steps=3,
+		         save_dir=None,
+		         num_save=1,
+		         train_intervall=1,
+		         n_restarts=1):
 		"""
 		Class for the Freeze Thaw Bayesian Optimization by Swersky et al.
 
@@ -75,6 +92,7 @@ class FreezeThawBO(BaseSolver):
 
 		self.incumbent = None
 		self.incumbents = []
+		self.incumbent_value = None
 		self.incumbent_values = []
 		self.init_points = init_points
 
@@ -82,6 +100,16 @@ class FreezeThawBO(BaseSolver):
 		self.basketOld_Y = basketOld_Y
 
 		self.first_steps = first_steps
+
+		self.time_func_eval = None
+		self.time_overhead = None
+		self.train_intervall = train_intervall
+
+		self.num_save = num_save
+		self.time_start = None
+
+		self.n_restarts = n_restarts
+		self.runtime = []
 
 	def run(self, num_iterations=10, X=None, Y=None):
 		"""
@@ -112,13 +140,11 @@ class FreezeThawBO(BaseSolver):
 			ys[i] = self.task.f(np.arange(1, 1 + self.first_steps), x=init[i, :])
 
 		self.basketOld_Y = deepcopy(ys)
-		# ys = y0, y1, y2, y3, y4
-		# print type(ys)
+
 		Y = np.zeros((len(ys), 1))
 		for i in xrange(Y.shape[0]):
 			Y[i, :] = ys[i][-1]
-		print 'Y: ', Y
-		#self.freezeModel = FreezeThawGP(x_train=self.basketOld_X, y_train=self.basketOld_Y)
+
 		self.freezeModel.X = self.freezeModel.x_train = self.basketOld_X
 		self.freezeModel.ys = self.freezeModel.y_train = self.basketOld_Y
 		self.freezeModel.Y = Y
@@ -134,14 +160,15 @@ class FreezeThawBO(BaseSolver):
 			
 			print '######################iteration nr: ', k, '#################################'
 
-			res = self.choose_next(X=self.basketOld_X, Y=self.basketOld_Y, do_optimize=True)
+			#res = self.choose_next(X=self.basketOld_X, Y=self.basketOld_Y, do_optimize=True)
+			res = self.choose_next_ei(X=self.basketOld_X, Y=self.basketOld_Y, do_optimize=True)
+			#res = res[0]
 			print 'res: ', res
 			ig = InformationGainMC(model=self.freezeModel, X_lower=self.task.X_lower, X_upper=self.task.X_upper, sampling_acquisition=EI)
 			ig.update(self.freezeModel, calc_repr=True)
 			H = ig.compute()
 			zb = deepcopy(ig.zb)
 			lmb = deepcopy(ig.lmb)
-			#H = 0
 			print 'H: ', H
 			# Fantasize over the old and the new configurations
 			nr_old = self.init_points
@@ -153,12 +180,12 @@ class FreezeThawBO(BaseSolver):
 				fant_old[i] = fv[0]
 				# print 'fant_old[i]: ', fant_old[i]
 			
-			nr_new = 1
+			nr_new = res.shape[0]
+
 			fant_new = np.zeros(nr_new)
 			for j in xrange(nr_new):
-				m, v = self.freezeModel.predict(xprime=res, option='new')
+				m, v = self.freezeModel.predict(xprime=res[j,:], option='new')
 				fant_new[j] = m
-				# print 'fant_new[j]: ', fant_new[j]
 
 			Hfant = np.zeros(nr_old + nr_new)
 
@@ -174,27 +201,34 @@ class FreezeThawBO(BaseSolver):
 				H1 = ig1.compute()
 				Hfant[i] = H1
 
-			freezeModel = deepcopy(self.freezeModel)
 			print 'Hfant: ', Hfant
-			freezeModel.X = np.append(freezeModel.X, res, axis=0)
-			ysNew = np.zeros(len(freezeModel.ys) + 1, dtype=object)
-			for i in xrange(len(freezeModel.ys)):
-				ysNew[i] = freezeModel.ys[i]
+			print 'freezeModel.X: ', freezeModel.X
+			print 'res: ', res
 
-			ysNew[-1] = np.array([fant_new[0]])
-			freezeModel.ys = freezeModel.y_train = ysNew
-			freezeModel.Y = np.append(freezeModel.Y, np.array([[fant_new[0]]]), axis=0)
-			freezeModel.C_samples = np.zeros(
-			            (freezeModel.C_samples.shape[0], freezeModel.C_samples.shape[1] + 1, freezeModel.C_samples.shape[2] + 1))
-			freezeModel.mu_samples = np.zeros(
-			    (freezeModel.mu_samples.shape[0], freezeModel.mu_samples.shape[1] + 1, 1))
+			for k in xrange(nr_new):
 
-			ig1 = InformationGainMC(model=freezeModel, X_lower=self.task.X_lower, X_upper=self.task.X_upper, sampling_acquisition=EI)
-			ig1.actualize(zb, lmb)
-			ig1.update(freezeModel)
-			H1 = ig1.compute()
-			Hfant[-1] = H1
-			print 'Hfant: ', Hfant
+				freezeModel = deepcopy(self.freezeModel)
+
+				freezeModel.X = np.append(freezeModel.X, res[k,:][np.newaxis,:], axis=0)
+				ysNew = np.zeros(len(freezeModel.ys) + 1, dtype=object)
+				for i in xrange(len(freezeModel.ys)):
+					ysNew[i] = freezeModel.ys[i]
+
+				ysNew[-1] = np.array([fant_new[k]])
+				freezeModel.ys = freezeModel.y_train = ysNew
+
+				freezeModel.Y = np.append(freezeModel.Y, np.array([[fant_new[k]]]), axis=0)
+				freezeModel.C_samples = np.zeros(
+				            (freezeModel.C_samples.shape[0], freezeModel.C_samples.shape[1] + 1, freezeModel.C_samples.shape[2] + 1))
+				freezeModel.mu_samples = np.zeros(
+				    (freezeModel.mu_samples.shape[0], freezeModel.mu_samples.shape[1] + 1, 1))
+
+				ig1 = InformationGainMC(model=freezeModel, X_lower=self.task.X_lower, X_upper=self.task.X_upper, sampling_acquisition=EI)
+				ig1.actualize(zb, lmb)
+				ig1.update(freezeModel)
+				H1 = ig1.compute()
+				Hfant[-(nr_new - k)] = H1
+				print 'Hfant: ', Hfant
 			
 			# Comparison of the different values
 			infoGain = -(Hfant - H)
@@ -203,20 +237,22 @@ class FreezeThawBO(BaseSolver):
 
 			#run an old configuration and actualize basket
 			#else run the new proposed configuration and actualize
-			if winner != len(Hfant) - 1:
+			if winner <= ((len(Hfant) - 1) - nr_new):
 			    # run corresponding configuration for more one step
 			    ytplus1 = self.task.f(t=len(self.basketOld_Y[winner]) + 1, x=self.basketOld_X[winner])
 			    self.basketOld_Y[winner] = np.append(self.basketOld_Y[winner], ytplus1)
 			else:
-				ytplus1 = self.task.f(t=1, x=res[0])
-				replace = get_min_max_ei(freezeModel, self.basketOld_X, self.basketOld_Y)
-				self.basketOld_X[replace] = res[0]
+				winner = winner - nr_old
+				ytplus1 = self.task.f(t=1, x=res[winner])
+				replace = get_min_ei(freezeModel, self.basketOld_X, self.basketOld_Y)
+				self.basketOld_X[replace] = res[winner]
 				self.basketOld_Y[replace] = np.array([ytplus1])
 
 			Y = getY(self.basketOld_Y)
 			self.incumbent, self.incumbent_value = estimate_incumbent(Y, self.basketOld_X)
 			self.incumbents.append(self.incumbent)
 			self.incumbent_values.append(self.incumbent_values)
+
 		return self.incumbent, self.incumbent_value
 
 # which one to exclude from the old basket? The one with lowest ei
@@ -274,7 +310,7 @@ class FreezeThawBO(BaseSolver):
 		return x
 
 
-	def choose_next_ei(self, X=None, Y=None, do_optimize=True, N=6, M=3):
+	def choose_next_ei(self, X=None, Y=None, do_optimize=True, N=10, M=3):
 		"""
 		Recommend a new configuration by maximizing the acquisition function
 
@@ -301,19 +337,21 @@ class FreezeThawBO(BaseSolver):
 		self.freezeModel.train(X, Y, do_optimize=do_optimize)
 
 		x = initial_design(self.task.X_lower, self.task.X_upper, N=N)
+		print 'in choose_next_ei x: ', x.shape
 
 		ei_list = np.zeros(x.shape[0])
 
 		for i in xrange(N):
-			ei_list = self.compute_ei(X=x[i,:], model=self.freezeModel, ys=Y, basketOld_X=X)
+			ei_list[i] = compute_ei(X=x[i,:], model=self.freezeModel, ys=Y, basketOld_X=X)
+
+		print 'in choose_next_ei ei_list: ', ei_list.shape
 
 		sort = np.argsort(ei_list)
 
 		highest_confs = x[sort][-M:]
+		print 'in choose_next_ei highest_confs: ', highest_confs.shape
 
 		return highest_confs
-
-
 
 
 def f(t, a=0.1, b=0.1, x=None):
@@ -336,38 +374,34 @@ def estimate_incumbent(Y, basketOld_X):
     return incumbent[np.newaxis, :], incumbent_value[:, np.newaxis] 
 
 def compute_ei(X, model, ys, basketOld_X, par=0.0):
-    print 'in compute_ei X: ', X
+    #print 'in compute_ei X: ', X
     m, v = model.predict(X[None,:])
     # m = m[0]
     # v = v[0]
-    print 'in compute_ei m: ', m, ' and v: ', v 
+    #print 'in compute_ei m: ', m, ' and v: ', v 
 
     Y = getY(ys)
-    print 'in compute_ei Y: ', Y
+    #print 'in compute_ei Y: ', Y
 
     _, eta = estimate_incumbent(Y, basketOld_X)
     # eta = eta[0,0]
-    print 'in compute_ei eta: ', eta
+    #print 'in compute_ei eta: ', eta
 
     s = np.sqrt(v)
 
     z = (eta - m - par) / s
-    print 'in compute_ei z: ', z
+    #print 'in compute_ei z: ', z
 
     f = s * ( z * norm.cdf(z) +  norm.pdf(z))
-    print 'in compute ei f: ', f
+    #print 'in compute ei f: ', f
     return f
 
-def get_min_max_ei(model, basketOld_X, basketOld_Y, max=False):
+def get_min_ei(model, basketOld_X, basketOld_Y):
     nr = basketOld_X.shape[0]
     eiList = np.zeros(nr)
     for i in xrange(nr):
         val = compute_ei(basketOld_X[i], model, basketOld_Y, basketOld_X)
-        # print'val in get_min_max_ei: ', val
+        # print'val in get_min_ei: ', val
         eiList[i] = val[0][0]
-    if not max:
-    	minIndex = np.argmin(eiList)
-    	return minIndex
-    else:
-    	maxIndex = np.argmax(eiList)
-    	return maxIndex
+    minIndex = np.argmin(eiList)
+    return minIndex

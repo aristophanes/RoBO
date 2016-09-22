@@ -6,6 +6,8 @@ import numpy as np
 from copy import deepcopy
 import logging
 import time
+import os
+import cPickle as pickle
 from robo.initial_design.init_random_uniform import init_random_uniform
 from robo.task.base_task import BaseTask
 from robo.solver.base_solver import BaseSolver
@@ -20,7 +22,9 @@ from scipy.stats import norm
 logger = logging.getLogger(__name__)
 
 """
-Compared to version 0 with all logging and saving stuff
+In this version 4 in comparision to the previous one 3, we are trying
+to be the adequte to lasagne_logrg_task_freeze.py and simultaneously trying
+to be more general for kinds of cases
 """
 
 class FreezeThawBO(BaseSolver):
@@ -39,7 +43,8 @@ class FreezeThawBO(BaseSolver):
 		         save_dir=None,
 		         num_save=1,
 		         train_intervall=1,
-		         n_restarts=1):
+		         n_restarts=1,
+		         pkl=True):
 		"""
 		Class for the Freeze Thaw Bayesian Optimization by Swersky et al.
 
@@ -98,6 +103,8 @@ class FreezeThawBO(BaseSolver):
 
 		self.basketOld_X = basketOld_X
 		self.basketOld_Y = basketOld_Y
+		self.basket_files = list()
+		self.directory = "temp_configs"
 
 		self.first_steps = first_steps
 
@@ -107,6 +114,7 @@ class FreezeThawBO(BaseSolver):
 
 		self.num_save = num_save
 		self.time_start = None
+		self.pkl = pkl
 
 		self.n_restarts = n_restarts
 		self.runtime = []
@@ -135,9 +143,17 @@ class FreezeThawBO(BaseSolver):
 		init = init_random_uniform(self.task.X_lower, self.task.X_upper, self.init_points)
 		self.basketOld_X = deepcopy(init)
 
+		self.create_file_paths()
+
 		ys = np.zeros(self.init_points, dtype=object)
+		##change: the task function should send the model file_path back and it should be stored here
 		for i in xrange(self.init_points):
-			ys[i] = self.task.f(np.arange(1, 1 + self.first_steps), x=init[i, :])
+			#ys[i] = self.task.f(np.arange(1, 1 + self.first_steps), x=init[i, :]) ##change: that's not general
+			#ys[i] = self.task.objective(nr_epochs=None, save_file_new=self.basket_files, save_file_old=None)
+			self.task.set_save_modus(is_old=False, file_old=None, file_new=self.basket_files[i])
+			#print 'init[i,:]: ', init[i,:]
+			ys[i] = self.task.objective_function(x=init[i,:])
+			
 
 		self.basketOld_Y = deepcopy(ys)
 
@@ -211,7 +227,7 @@ class FreezeThawBO(BaseSolver):
 
 				freezeModel.X = np.append(freezeModel.X, res[k,:][np.newaxis,:], axis=0)
 				ysNew = np.zeros(len(freezeModel.ys) + 1, dtype=object)
-				for i in xrange(len(freezeModel.ys)):
+				for i in xrange(len(freezeModel.ys)): ##improve: do not use loop here, but some expansion
 					ysNew[i] = freezeModel.ys[i]
 
 				ysNew[-1] = np.array([fant_new[k]])
@@ -238,20 +254,46 @@ class FreezeThawBO(BaseSolver):
 			#run an old configuration and actualize basket
 			#else run the new proposed configuration and actualize
 			if winner <= ((len(Hfant) - 1) - nr_new):
-			    # run corresponding configuration for more one step
-			    ytplus1 = self.task.f(t=len(self.basketOld_Y[winner]) + 1, x=self.basketOld_X[winner])
-			    self.basketOld_Y[winner] = np.append(self.basketOld_Y[winner], ytplus1)
+				print '###################### run old config ######################'
+				# run corresponding configuration for more one step
+				##change: the task function should send the model file_path back and it should be stored here
+				#ytplus1 = self.task.f(t=len(self.basketOld_Y[winner]) + 1, x=self.basketOld_X[winner])
+				#ytplus1 = self.task.f(t=len(self.basketOld_Y[winner]) + 1, x=self.basketOld_X[winner], save_file_old=self.basket_files[winner])
+				self.task.set_save_modus(is_old=True, file_old=self.basket_files[winner], file_new=None)
+				if self.pkl:
+					with open(self.basket_files[winner],'rb') as f:
+						weights_final = pickle.load(f)
+					W,b = weights_final
+					self.task.set_weights(W=W, b=b)
+				else:
+					self.task.set_weights(self.basket_files[winner])
+				ytplus1 = self.task.objective_function(x=self.basketOld_X[winner])
+				self.basketOld_Y[winner] = np.append(self.basketOld_Y[winner], ytplus1)
 			else:
+				print '###################### run new config ######################'
 				winner = winner - nr_old
-				ytplus1 = self.task.f(t=1, x=res[winner])
+				##change: the task function should send the model file_path back and it should be saved here
+				#ytplus1 = self.task.f(t=1, x=res[winner])
+				if self.pkl:
+					file_path = "config_" + str(len(self.basket_files)) + ".pkl"
+				else:
+					file_path = "config_" + str(len(self.basket_files))
+				file_path = os.path.join(self.directory, file_path)
+				#ytplus1 = self.task.f(t=1, x=res[winner], save_file_new=file_path)
+				self.task.set_save_modus(is_old=False, file_old=None, file_new=file_path)
+				ytplus1 = self.task.objective_function(x=res[winner])
 				replace = get_min_ei(freezeModel, self.basketOld_X, self.basketOld_Y)
 				self.basketOld_X[replace] = res[winner]
-				self.basketOld_Y[replace] = np.array([ytplus1])
+				if type(ytplus1) != np.ndarray:
+					self.basketOld_Y[replace] = np.array([ytplus1])
+				else:
+					self.basketOld_Y[replace] = ytplus1
+				#self.basket_files[replace] = file_path
 
 			Y = getY(self.basketOld_Y)
 			self.incumbent, self.incumbent_value = estimate_incumbent(Y, self.basketOld_X)
 			self.incumbents.append(self.incumbent)
-			self.incumbent_values.append(self.incumbent_values)
+			self.incumbent_values.append(self.incumbent_value)
 
 		return self.incumbent, self.incumbent_value
 
@@ -324,21 +366,33 @@ class FreezeThawBO(BaseSolver):
 		self.freezeModel.train(X, Y, do_optimize=do_optimize)
 
 		x = initial_design(self.task.X_lower, self.task.X_upper, N=N)
-		print 'in choose_next_ei x: ', x.shape
+		#print 'in choose_next_ei x: ', x.shape
 
 		ei_list = np.zeros(x.shape[0])
 
 		for i in xrange(N):
 			ei_list[i] = compute_ei(X=x[i,:], model=self.freezeModel, ys=Y, basketOld_X=X)
 
-		print 'in choose_next_ei ei_list: ', ei_list.shape
+		#print 'in choose_next_ei ei_list: ', ei_list.shape
 
 		sort = np.argsort(ei_list)
 
 		highest_confs = x[sort][-M:]
-		print 'in choose_next_ei highest_confs: ', highest_confs.shape
+		#print 'in choose_next_ei highest_confs: ', highest_confs.shape
 
 		return highest_confs
+
+	def create_file_paths(self):
+		if not os.path.exists(self.directory):
+			os.makedirs(self.directory)
+
+		for index in xrange(self.init_points):
+			if self.pkl:
+				file_path = "config_" + str(index) + ".pkl"
+			else:
+				file_path = "config_" + str(index)
+			self.basket_files.append(os.path.join(self.directory, file_path))
+		#print self.basket_files
 
 
 def f(t, a=0.1, b=0.1, x=None):

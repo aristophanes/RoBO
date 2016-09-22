@@ -6,6 +6,7 @@ import numpy as np
 from copy import deepcopy
 import logging
 import time
+import os
 from robo.initial_design.init_random_uniform import init_random_uniform
 from robo.task.base_task import BaseTask
 from robo.solver.base_solver import BaseSolver
@@ -20,7 +21,8 @@ from scipy.stats import norm
 logger = logging.getLogger(__name__)
 
 """
-Compared to version 0 with all logging and saving stuff
+In this version 3 in comparison to version 0 we are trying to find the places where we
+should store the file paths
 """
 
 class FreezeThawBO(BaseSolver):
@@ -98,6 +100,8 @@ class FreezeThawBO(BaseSolver):
 
 		self.basketOld_X = basketOld_X
 		self.basketOld_Y = basketOld_Y
+		self.basket_files = list()
+		self.directory = "temp_configs"
 
 		self.first_steps = first_steps
 
@@ -135,9 +139,12 @@ class FreezeThawBO(BaseSolver):
 		init = init_random_uniform(self.task.X_lower, self.task.X_upper, self.init_points)
 		self.basketOld_X = deepcopy(init)
 
+		self.create_file_paths()
+
 		ys = np.zeros(self.init_points, dtype=object)
+		##change: the task function should send the model file_path back and it should be stored here
 		for i in xrange(self.init_points):
-			ys[i] = self.task.f(np.arange(1, 1 + self.first_steps), x=init[i, :])
+			ys[i] = self.task.f(np.arange(1, 1 + self.first_steps), x=init[i, :]) ##change: that's not general
 
 		self.basketOld_Y = deepcopy(ys)
 
@@ -211,7 +218,7 @@ class FreezeThawBO(BaseSolver):
 
 				freezeModel.X = np.append(freezeModel.X, res[k,:][np.newaxis,:], axis=0)
 				ysNew = np.zeros(len(freezeModel.ys) + 1, dtype=object)
-				for i in xrange(len(freezeModel.ys)):
+				for i in xrange(len(freezeModel.ys)): ##improve: do not use loop here, but some expansion
 					ysNew[i] = freezeModel.ys[i]
 
 				ysNew[-1] = np.array([fant_new[k]])
@@ -239,10 +246,12 @@ class FreezeThawBO(BaseSolver):
 			#else run the new proposed configuration and actualize
 			if winner <= ((len(Hfant) - 1) - nr_new):
 			    # run corresponding configuration for more one step
+			    ##change: the task function should send the model file_path back and it should be stored here
 			    ytplus1 = self.task.f(t=len(self.basketOld_Y[winner]) + 1, x=self.basketOld_X[winner])
 			    self.basketOld_Y[winner] = np.append(self.basketOld_Y[winner], ytplus1)
 			else:
 				winner = winner - nr_old
+				##change: the task function should send the model file_path back and it should be saved here
 				ytplus1 = self.task.f(t=1, x=res[winner])
 				replace = get_min_ei(freezeModel, self.basketOld_X, self.basketOld_Y)
 				self.basketOld_X[replace] = res[winner]
@@ -339,6 +348,15 @@ class FreezeThawBO(BaseSolver):
 		print 'in choose_next_ei highest_confs: ', highest_confs.shape
 
 		return highest_confs
+
+	def create_file_paths(self):
+		if not os.path.exists(self.directory):
+			os.makedirs(self.directory)
+
+		for index in xrange(self.init_points):
+			file_path = "config_" + str(index) + ".pkl"
+			self.basket_files.append(os.path.join(self.directory, file_path))
+		print self.basket_files
 
 
 def f(t, a=0.1, b=0.1, x=None):

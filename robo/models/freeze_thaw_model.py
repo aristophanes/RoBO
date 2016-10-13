@@ -226,6 +226,10 @@ class FreezeThawGP(BaseModel):
 
         #pdl = PredLik(x_train, y_train, invChol=self.invChol,
         #              horse=self.horse, samenoise=self.samenoise)
+        if hyper_configs < 2*(fix+flex):
+            hyper_configs = 2*(fix+flex)
+            self.hyper_configs = hyper_configs
+            self.actualize()
 
         samples = np.zeros((hyper_configs, fix + flex))
 
@@ -567,6 +571,7 @@ class FreezeThawGP(BaseModel):
                     (divby, self.mu_samples.shape[1], self.mu_samples.shape[2]))
                 self.samples = np.zeros((divby, self.samples.shape[1]))
 
+            
             for j in xrange(divby):
                 #print 'means_val[j]: ', means_val[j]
                 mean_temp[j, :] = means_val[j]

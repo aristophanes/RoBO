@@ -16,13 +16,7 @@ class LogisticRegression(BaseTask):
                  n_classes, num_epochs=500,
                  save=False, file_name=None):
         '''
-        Logistic Regression. This benchmark
-        consists of 5 different hyperparamters:
-            Learning rate
-            L2 regularisation
-            Batch size
-            Dropout rate
-            L1 regularisation
+  
 
         Parameters
         ----------
@@ -51,59 +45,46 @@ class LogisticRegression(BaseTask):
         self.num_epochs = num_epochs
         self.save = save
         self.file_name = file_name
+        self.base_name = "logistic_regression"
         # 1 Dim Learning Rate:
         # 2 Dim L2 regularization: 0 to 1
         # 3 Dim Batch size: 20 to 2000
         # 4 Dim Dropout rate: 0 to 0.75
         # 5 Dim L1 regularization: 0.1 to 20
-        X_lower = np.array([np.log(1e-6), 0.0, 20, 0, 0.1])
-        X_upper = np.array([np.log(1e-1), 1.0, 2000, 0.75, 20])
+        # 6 Dim Epochs Number: 1 to 100
+        X_lower = np.array([np.log(1e-6), 0.0, 20, 0, 0.1, 1])
+        #X_lower = np.array([np.log(1e-6), 0.0, 1000, 0, 0.1, 1])
+        X_upper = np.array([np.log(1e-1), 1.0, 2000, 0.75, 20, 100])
+        #X_upper = np.array([np.log(1e-1), 1.0, 2000, 0.75, 20, 10])
+        #X_upper = np.array([np.log(1e-1), 1.0, 2000, 0.75, 20, 7])
+        #X_upper = np.array([np.log(1e-1), 1.0, 2000, 0.75, 20, 3])
         super(LogisticRegression, self).__init__(X_lower, X_upper)
 
 
     def build_mlp(self, input_var=None, dropout_rate=0.5, l2_reg=0., l1_reg=0.):
-        # This creates an MLP of two hidden layers of 800 units each, followed by
-        # a softmax output layer of 10 units. It applies 20% dropout to the input
-        # data and 50% dropout to the hidden layers.
 
-        # Input layer, specifying the expected input shape of the network
-        # (unspecified batchsize, 1 channel, 28 rows and 28 columns) and
-        # linking it to the given Theano variable `input_var`, if any:
         l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                          input_var=input_var)
 
-        # Apply 20% dropout to the input data:
-        #l_in_drop = lasagne.layers.DropoutLayer(l_in, p=dropout_rate)
 
-        # Add a fully-connected layer of 800 units, using the linear rectifier, and
-        # initializing weights with Glorot's scheme (which is the default anyway):
         l_hid1 = lasagne.layers.DenseLayer(
                 l_in, num_units=800,
                 nonlinearity=lasagne.nonlinearities.rectify,
                 W=lasagne.init.GlorotUniform())
 
-        # We'll now add dropout of 50%:
+       
 
         self.l2_penalty = regularize_layer_params(l_hid1, l2)
         self.l1_penalty = regularize_layer_params(l_hid1, l1)
 
         l_hid1_drop = lasagne.layers.DropoutLayer(l_hid1, p=dropout_rate)
 
-        # Another 800-unit layer:
-        #l_hid2 = lasagne.layers.DenseLayer(
-        #       l_hid1_drop, num_units=800,
-        #        nonlinearity=lasagne.nonlinearities.rectify)
 
-        # 50% dropout again:
-        #l_hid2_drop = lasagne.layers.DropoutLayer(l_hid2, p=dropout_rate)
-
-        # Finally, we'll add the fully-connected output layer, of 10 softmax units:
         l_out = lasagne.layers.DenseLayer(
                 l_hid1_drop, num_units=10,
                 nonlinearity=lasagne.nonlinearities.softmax)
 
-        # Each layer is linked to its incoming layer(s), so we only need to pass
-        # the output layer to give access to a network in Lasagne:
+
         return l_out
 
     def iterate_minibatches(self, inputs, targets, batchsize, shuffle=False):
@@ -111,6 +92,9 @@ class LogisticRegression(BaseTask):
         if shuffle:
             indices = np.arange(len(inputs))
             np.random.shuffle(indices)
+
+        #print 'batchsize: ', batchsize
+        #print 'len(inputs): ', len(inputs)
         for start_idx in range(0, len(inputs) - batchsize + 1, batchsize):
             if shuffle:
                 excerpt = indices[start_idx:start_idx + batchsize]
@@ -129,6 +113,7 @@ class LogisticRegression(BaseTask):
 
     def set_save_modus(self, is_old=True, file_old=None, file_new=None):
         self.save_old = is_old
+        self.save = True
         if self.save_old:
             self.file_name = file_old
         else:
@@ -136,17 +121,18 @@ class LogisticRegression(BaseTask):
 
 
     def objective_function(self, x):
+        print 'in objective_function x: ', x
         learning_rate = np.float32(np.exp(x[0, 0]))
         l2_reg = np.float32(x[0, 1])
         batch_size = np.int32(x[0, 2])
+        print 'in objective_function batch_size: ', batch_size
         dropout_rate = np.int32(x[0, 3])
         l1_reg = np.int32(x[0, 4])
+        epochs_number = np.int32(x[0, 5])
         best_validation_loss = np.inf
-        #num_epochs=500
+        self.num_epochs = epochs_number
 
-        # Load the dataset
-        #print("Loading data...")
-        #X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
+        val_losses = []
 
         # Prepare Theano variables for inputs and targets
         input_var = T.tensor4('inputs')
@@ -169,21 +155,20 @@ class LogisticRegression(BaseTask):
         loss = loss + l2_reg*self.l2_penalty + l1_reg*self.l1_penalty
         # We could add some weight decay as well here, see lasagne.regularization.
 
-        # Create update expressions for training, i.e., how to modify the
-        # parameters at each training step. Here, we'll use Stochastic Gradient
-        # Descent (SGD) with Nesterov momentum, but Lasagne offers plenty more.
+        # Here, we'll use Stochastic Gradient
+        # Descent (SGD) with Nesterov momentum, but Lasagne offers more.
         params = lasagne.layers.get_all_params(self.network, trainable=True)
         updates = lasagne.updates.nesterov_momentum(
                 loss, params, learning_rate=learning_rate, momentum=0.9)
 
-        # Create a loss expression for validation/testing. The crucial difference
+        # Create a loss expression for validation/testing. The difference
         # here is that we do a deterministic forward pass through the network,
         # disabling dropout layers.
         test_prediction = lasagne.layers.get_output(self.network, deterministic=True)
         test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
                                                                 target_var)
         test_loss = test_loss.mean()
-        # As a bonus, also create an expression for the classification accuracy:
+        # create an expression for the classification accuracy:
         test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
                           dtype=theano.config.floatX)
 
@@ -218,8 +203,11 @@ class LogisticRegression(BaseTask):
                 val_acc += acc
                 val_batches += 1
 
-            if val_acc < best_validation_loss:
-                best_validation_loss = val_acc
+            val_loss = 1. - val_acc / float(val_batches)
+            val_losses.append(val_loss)
+            
+            if val_loss < best_validation_loss:
+                best_validation_loss = val_loss
             # Then we print the results for this epoch:
             print("Epoch {} of {} took {:.3f}s".format(
                 epoch + 1, self.num_epochs, time.time() - start_time))
@@ -239,23 +227,19 @@ class LogisticRegression(BaseTask):
             test_err += err
             test_acc += acc
             test_batches += 1
+
+
         print("Final results:")
         print("  test loss:\t\t\t{:.6f}".format(test_err / test_batches))
         print("  test accuracy:\t\t{:.2f} %".format(
             test_acc / test_batches * 100))
 
-        # Optionally, you could now dump the network weights to a file like this:
-        # np.savez('model.npz', *lasagne.layers.get_all_param_values(network))
-        #
-        # And load them again later on like this:
-        # with np.load('model.npz') as f:
-        #     param_values = [f['arr_%d' % i] for i in range(len(f.files))]
-        # lasagne.layers.set_all_param_values(network, param_values)
+
         if self.save:
             file_name = self.file_name + '.npz'
-            np.savez('model.npz', *lasagne.layers.get_all_param_values(self.network))
+            np.savez(file_name, *lasagne.layers.get_all_param_values(self.network))
 
-        return np.array([[best_validation_loss]])
+        return np.array([[best_validation_loss]]), val_losses
         
     def objective_function_test(self, x):        
         self.objective_function(x)

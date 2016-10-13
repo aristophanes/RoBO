@@ -44,7 +44,9 @@ class FreezeThawBO(BaseSolver):
 		         num_save=1,
 		         train_intervall=1,
 		         n_restarts=1,
-		         pkl=True):
+		         pkl=False,
+		         max_epochs=500, 
+		         stop_epochs=False):
 		"""
 		Class for the Freeze Thaw Bayesian Optimization by Swersky et al.
 
@@ -115,6 +117,8 @@ class FreezeThawBO(BaseSolver):
 		self.num_save = num_save
 		self.time_start = None
 		self.pkl = pkl
+		self.stop_epochs = stop_epochs
+		self.max_epochs = max_epochs
 
 		self.n_restarts = n_restarts
 		self.runtime = []
@@ -142,6 +146,8 @@ class FreezeThawBO(BaseSolver):
 
 		init = init_random_uniform(self.task.X_lower, self.task.X_upper, self.init_points)
 		self.basketOld_X = deepcopy(init)
+		val_losses_all = []
+		nr_epochs = 0
 
 		self.create_file_paths()
 
@@ -152,7 +158,12 @@ class FreezeThawBO(BaseSolver):
 			#ys[i] = self.task.objective(nr_epochs=None, save_file_new=self.basket_files, save_file_old=None)
 			self.task.set_save_modus(is_old=False, file_old=None, file_new=self.basket_files[i])
 			#print 'init[i,:]: ', init[i,:]
-			ys[i] = self.task.objective_function(x=init[i,:])
+			#_, ys[i] = self.task.objective_function(x=init[i,:][np.newaxis,:])
+			_, val_losses = self.task.evaluate(x=init[i,:][np.newaxis,:])
+			ys[i] = np.asarray(val_losses)
+			val_losses_all = val_losses_all + val_losses
+			nr_epochs+=len(val_losses)
+			print 'in ftbo4 ys[i]: ', type(ys[i])
 			
 
 		self.basketOld_Y = deepcopy(ys)
@@ -174,6 +185,10 @@ class FreezeThawBO(BaseSolver):
 
 		for k in range(self.init_points, num_iterations):
 			
+			if self.stop_epochs and nr_epochs >= self.max_epochs:
+				print 'Maximal number of epochs'
+				break
+
 			print '######################iteration nr: ', k, '#################################'
 
 			#res = self.choose_next(X=self.basketOld_X, Y=self.basketOld_Y, do_optimize=True)
@@ -267,7 +282,11 @@ class FreezeThawBO(BaseSolver):
 					self.task.set_weights(W=W, b=b)
 				else:
 					self.task.set_weights(self.basket_files[winner])
-				ytplus1 = self.task.objective_function(x=self.basketOld_X[winner])
+				#ytplus1 = self.task.objective_function(x=self.basketOld_X[winner])
+				_, val_losses= self.task.evaluate(x=self.basketOld_X[winner][np.newaxis,:])
+				ytplus1 = np.asarray(val_losses)
+				val_losses_all = val_losses_all + val_losses
+				nr_epochs+=len(val_losses)
 				self.basketOld_Y[winner] = np.append(self.basketOld_Y[winner], ytplus1)
 			else:
 				print '###################### run new config ######################'
@@ -281,19 +300,26 @@ class FreezeThawBO(BaseSolver):
 				file_path = os.path.join(self.directory, file_path)
 				#ytplus1 = self.task.f(t=1, x=res[winner], save_file_new=file_path)
 				self.task.set_save_modus(is_old=False, file_old=None, file_new=file_path)
-				ytplus1 = self.task.objective_function(x=res[winner])
+				#ytplus1 = self.task.objective_function(x=res[winner])
+				_, val_losses = self.task.evaluate(x=res[winner][np.newaxis,:])
+				ytplus1 = np.asarray(val_losses)
+				val_losses_all = val_losses_all + val_losses
+				nr_epochs+=len(val_losses)
 				replace = get_min_ei(freezeModel, self.basketOld_X, self.basketOld_Y)
 				self.basketOld_X[replace] = res[winner]
 				if type(ytplus1) != np.ndarray:
 					self.basketOld_Y[replace] = np.array([ytplus1])
 				else:
 					self.basketOld_Y[replace] = ytplus1
-				#self.basket_files[replace] = file_path
+				self.basket_files[replace] = file_path
 
 			Y = getY(self.basketOld_Y)
 			self.incumbent, self.incumbent_value = estimate_incumbent(Y, self.basketOld_X)
 			self.incumbents.append(self.incumbent)
 			self.incumbent_values.append(self.incumbent_value)
+
+			with open('val_losses_all.pkl', 'wb') as f:
+				pickle.dump(val_losses_all, f)
 
 		return self.incumbent, self.incumbent_value
 

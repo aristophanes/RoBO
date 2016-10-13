@@ -13,7 +13,8 @@ from robo.maximizers.direct import Direct
 #from robo.task.ml.logistic_regression import LogisticRegression
 from robo.task.ml.lasagne_logrg_task import LogisticRegression
 #from robo.task.ml.logistic_regression_freeze import LogisticRegression
-from robo.solver.bayesian_optimization import BayesianOptimization
+#from robo.solver.bayesian_optimization import BayesianOptimization
+from robo.solver.bayesian_optimization1 import BayesianOptimization
 from robo.initial_design.init_random_uniform import init_random_uniform
 from robo.priors.default_priors import DefaultPrior
 from robo.acquisition.integrated_acquisition import IntegratedAcquisition

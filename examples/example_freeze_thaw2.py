@@ -39,10 +39,16 @@ def plot_running(runCurves, predCurve, predStd2, trueCurve, conf=False):
 	pl.legend(loc='upper right')
 	pl.show()
 
+"""
 def plot_mean_curve(means, std2s, curves, colors):
 	plot_mean(means, std2s, colors)
 	plot_curve(curves, colors)
+"""
+def plot_mean_curve(means, std2s, curves, colors, ground=False, ground_list=None):
+	plot_mean(means, std2s, colors, ground=ground, ground_list=ground_list)
+	plot_curve(curves, colors)
 
+"""
 def plot_mean(means, std2s, colors):
 	figure = pl.figure()
 	x = np.arange(1, len(means)+1) #configurations
@@ -51,6 +57,22 @@ def plot_mean(means, std2s, colors):
 	#power_smooth = spline(x, means, xnew)
 	#pl.plot(xnew, power_smooth)
 	pl.scatter(x, means, s=50, c=colors)
+	connector, caplines, (vertical_lines,) = container.lines
+	vertical_lines.set_color(colors)
+	pl.ylabel('predicted asymptotic mean')
+	pl.xlabel('configuration number')
+	pl.show()
+"""
+def plot_mean(means, std2s, colors, ground=False, ground_list=None):
+	figure = pl.figure()
+	x = np.arange(1, len(means)+1) #configurations
+	container = pl.errorbar(x, means, yerr=std2s, fmt='o')#, ecolor=colors)#, ecolor=colors)#,linestyle='None', marker='^')
+	#xnew = np.linspace(x.min(), x.max(), 300)
+	#power_smooth = spline(x, means, xnew)
+	#pl.plot(xnew, power_smooth)
+	pl.scatter(x, means, s=50, c=colors)
+	if ground:
+		pl.scatter(x, ground_list, s=50, c=colors)
 	connector, caplines, (vertical_lines,) = container.lines
 	vertical_lines.set_color(colors)
 	pl.ylabel('predicted asymptotic mean')
@@ -143,7 +165,7 @@ def example_predict_running():
 	#plot_running(runCurves=runnings, predCurve=pred_complete, predStd2=std2, trueCurve=curve_complete, conf=False)
 	plot_running(runCurves=runnings, predCurve=pred_complete2, predStd2=std2, trueCurve=curve_complete, conf=False)
 
-
+"""
 def example_predict_asymptotic():
 	color = ['b','g','c','m','y','k','r','g','c','m']
 	grid = 5
@@ -176,9 +198,46 @@ def example_predict_asymptotic():
 	print 'std2: ', std2
 
 	plot_mean_curve(means=np.abs(mu), std2s=std2, curves=ys, colors=color)
+"""
 
-#fig, axs = plt.subplots(nrows=2, ncols=2, sharex=True)
-#ax = axs[0,0]
+def example_predict_asymptotic(ground=False):
+	color = ['b','g','c','m','y','k','r','g','c','m']
+	grid = 5
+	sigma = 0.1
+	mu=0.
+	task = ExpDecay()
+	stepL=3
+	stepU = 8
+	stepR = np.arange(stepL, stepU+1)
+	#task.X_lower = np.array([70, 1])
+	#task.X_upper = np.array([100, 5])
+	task.X_lower = np.array([0., 0.])
+	task.X_upper = np.array([1., 1.])
+	nr_init = 10
+	ground_step = 13
+	init = init_random_uniform(task.X_lower, task.X_upper, nr_init)
+	grounds = np.zeros(nr_init)
+	ys = np.zeros(init.shape[0], dtype=object)
+	for i in xrange(len(init)):
+		steps = np.random.choice(stepR, 1)
+		xs = np.linspace(1, steps, grid*steps)
+		epslon = sigma*np.random.randn() + mu
+		curve = task.f(t=np.arange(1, steps+1), x=init[i,:]) + epslon
+		if ground:
+			grounds[i] = task.f(t=ground_step, x=init[i,:])
+		#print 'curve: ', curve
+		ys[i] = curve
+
+	freeze_thaw_model = FreezeThawGP(x_train=init, y_train=ys, invChol=True, lg=False)
+
+
+	freeze_thaw_model.train()
+
+	mu, std2 = freeze_thaw_model.predict(option='asympt', xprime=init)
+	print 'std2: ', std2
+
+	plot_mean_curve(means=np.abs(mu), std2s=std2, curves=ys, colors=color, ground=ground, ground_list=grounds)
+
 
 def main(predOld, predAsympt):
 	if predOld:
@@ -189,7 +248,8 @@ def main(predOld, predAsympt):
 
 if __name__== "__main__":
 	#example_predict_running()
-	example_predict_asymptotic()
+	#example_predict_asymptotic()
+	example_predict_asymptotic(ground=True)
 	# parser = argparse.ArgumentParser()
 	# parser.add_argument('-o', action='store_true', default=False,
  #                    dest='predOld',

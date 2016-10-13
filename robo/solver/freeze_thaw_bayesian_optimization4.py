@@ -44,7 +44,11 @@ class FreezeThawBO(BaseSolver):
 		         num_save=1,
 		         train_intervall=1,
 		         n_restarts=1,
-		         pkl=True):
+		         pkl=False,
+		         max_epochs=500, 
+		         stop_epochs=False,
+		         nr_epochs_inits=5,
+		         nr_epochs_further=10):
 		"""
 		Class for the Freeze Thaw Bayesian Optimization by Swersky et al.
 
@@ -104,9 +108,12 @@ class FreezeThawBO(BaseSolver):
 		self.basketOld_X = basketOld_X
 		self.basketOld_Y = basketOld_Y
 		self.basket_files = list()
-		self.directory = "temp_configs"
+		self.basket_indices = list()
+		self.directory = "temp_configs_" + self.task.base_name
 
 		self.first_steps = first_steps
+		self.nr_epochs_inits = nr_epochs_inits
+		self.nr_epochs_further = nr_epochs_further
 
 		self.time_func_eval = None
 		self.time_overhead = None
@@ -115,6 +122,10 @@ class FreezeThawBO(BaseSolver):
 		self.num_save = num_save
 		self.time_start = None
 		self.pkl = pkl
+		self.stop_epochs = stop_epochs
+		self.max_epochs = max_epochs
+		self.all_configs = dict()
+		self.total_nr_confs = 0
 
 		self.n_restarts = n_restarts
 		self.runtime = []
@@ -142,6 +153,8 @@ class FreezeThawBO(BaseSolver):
 
 		init = init_random_uniform(self.task.X_lower, self.task.X_upper, self.init_points)
 		self.basketOld_X = deepcopy(init)
+		val_losses_all = []
+		nr_epochs = 0
 
 		self.create_file_paths()
 
@@ -151,8 +164,18 @@ class FreezeThawBO(BaseSolver):
 			#ys[i] = self.task.f(np.arange(1, 1 + self.first_steps), x=init[i, :]) ##change: that's not general
 			#ys[i] = self.task.objective(nr_epochs=None, save_file_new=self.basket_files, save_file_old=None)
 			self.task.set_save_modus(is_old=False, file_old=None, file_new=self.basket_files[i])
+			self.set_epochs(self.nr_epochs_inits)
 			#print 'init[i,:]: ', init[i,:]
-			ys[i] = self.task.objective_function(x=init[i,:])
+			#_, ys[i] = self.task.objective_function(x=init[i,:][np.newaxis,:])
+			conf_now = init[i,:]
+			_, val_losses = self.task.evaluate(x=conf_now[np.newaxis,:])
+			#storing configuration, learning curve, activity, index in the basketOld
+			ys[i] = np.asarray(val_losses)
+			self.all_configs[self.total_nr_confs] = [conf_now, ys[i], True, self.total_nr_confs]
+			self.total_nr_confs+=1
+			val_losses_all = val_losses_all + val_losses
+			nr_epochs+=len(val_losses)
+			#print 'in ftbo4 ys[i]: ', type(ys[i])
 			
 
 		self.basketOld_Y = deepcopy(ys)
@@ -165,18 +188,20 @@ class FreezeThawBO(BaseSolver):
 		self.freezeModel.ys = self.freezeModel.y_train = self.basketOld_Y
 		self.freezeModel.Y = Y
 		self.freezeModel.actualize()
-		task = ExpDecay()
-		# ei = EI(freezeModel, X_lower, X_upper)
-		# maximizer = Direct(ei, X_lower, X_upper)
 
 		###############################From here onwards the iteration with for loop###########################################
 		#######################################################################################################################
 
 		for k in range(self.init_points, num_iterations):
 			
+			if self.stop_epochs and nr_epochs >= self.max_epochs:
+				print 'Maximal number of epochs'
+				break
+
 			print '######################iteration nr: ', k, '#################################'
 
 			#res = self.choose_next(X=self.basketOld_X, Y=self.basketOld_Y, do_optimize=True)
+			#here just choose the next candidates, which will be stored in basketNew
 			res = self.choose_next_ei(X=self.basketOld_X, Y=self.basketOld_Y, do_optimize=True)
 			#res = res[0]
 			print 'res: ', res
@@ -252,7 +277,6 @@ class FreezeThawBO(BaseSolver):
 			print 'the winner is index: ', winner
 
 			#run an old configuration and actualize basket
-			#else run the new proposed configuration and actualize
 			if winner <= ((len(Hfant) - 1) - nr_new):
 				print '###################### run old config ######################'
 				# run corresponding configuration for more one step
@@ -260,6 +284,8 @@ class FreezeThawBO(BaseSolver):
 				#ytplus1 = self.task.f(t=len(self.basketOld_Y[winner]) + 1, x=self.basketOld_X[winner])
 				#ytplus1 = self.task.f(t=len(self.basketOld_Y[winner]) + 1, x=self.basketOld_X[winner], save_file_old=self.basket_files[winner])
 				self.task.set_save_modus(is_old=True, file_old=self.basket_files[winner], file_new=None)
+				self.set_epochs(self.nr_epochs_further)
+
 				if self.pkl:
 					with open(self.basket_files[winner],'rb') as f:
 						weights_final = pickle.load(f)
@@ -267,8 +293,19 @@ class FreezeThawBO(BaseSolver):
 					self.task.set_weights(W=W, b=b)
 				else:
 					self.task.set_weights(self.basket_files[winner])
-				ytplus1 = self.task.objective_function(x=self.basketOld_X[winner])
+				#ytplus1 = self.task.objective_function(x=self.basketOld_X[winner])
+				conf_to_run = self.basketOld_X[winner]
+				_, val_losses= self.task.evaluate(x=conf_to_run[np.newaxis,:])
+				ytplus1 = np.asarray(val_losses)
+				val_losses_all = val_losses_all + val_losses
+				nr_epochs+=len(val_losses)
 				self.basketOld_Y[winner] = np.append(self.basketOld_Y[winner], ytplus1)
+				
+				index_now = self.basket_indices[winner]
+				#self.all_configs[index_now] = [conf_to_run, self.basketOld_Y[winner], True, winner]
+				self.all_configs[index_now][1] = self.basketOld_Y[winner]
+
+			#else run the new proposed configuration and actualize
 			else:
 				print '###################### run new config ######################'
 				winner = winner - nr_old
@@ -281,19 +318,39 @@ class FreezeThawBO(BaseSolver):
 				file_path = os.path.join(self.directory, file_path)
 				#ytplus1 = self.task.f(t=1, x=res[winner], save_file_new=file_path)
 				self.task.set_save_modus(is_old=False, file_old=None, file_new=file_path)
-				ytplus1 = self.task.objective_function(x=res[winner])
+				self.set_epochs(self.nr_epochs_further)
+				#ytplus1 = self.task.objective_function(x=res[winner])
+				_, val_losses = self.task.evaluate(x=res[winner][np.newaxis,:])
+				ytplus1 = np.asarray(val_losses)
+				val_losses_all = val_losses_all + val_losses
+				nr_epochs+=len(val_losses)
 				replace = get_min_ei(freezeModel, self.basketOld_X, self.basketOld_Y)
 				self.basketOld_X[replace] = res[winner]
 				if type(ytplus1) != np.ndarray:
 					self.basketOld_Y[replace] = np.array([ytplus1])
 				else:
 					self.basketOld_Y[replace] = ytplus1
-				#self.basket_files[replace] = file_path
+				self.basket_files[replace] = file_path
+
+				#deactivate the configuration which is being replaced
+				self.all_configs[self.basket_indices[replace]][2] = False
+				self.all_configs[self.basket_indices[replace]][3] = -1
+				#actualize the indices table
+				self.total_nr_confs+=1
+				self.basket_indices[replace]=self.total_nr_confs
+				#add new configuration with learning curve and index
+				self.all_configs[self.total_nr_confs] = [conf_to_run, self.basketOld_Y[winner], True, replace]
 
 			Y = getY(self.basketOld_Y)
 			self.incumbent, self.incumbent_value = estimate_incumbent(Y, self.basketOld_X)
 			self.incumbents.append(self.incumbent)
 			self.incumbent_values.append(self.incumbent_value)
+
+			with open('val_losses_all.pkl', 'wb') as f:
+				pickle.dump(val_losses_all, f)
+
+			with open('all_configs.pkl','wb') as c:
+				pickle.dump(self.all_configs, c)
 
 		return self.incumbent, self.incumbent_value
 
@@ -392,6 +449,7 @@ class FreezeThawBO(BaseSolver):
 			else:
 				file_path = "config_" + str(index)
 			self.basket_files.append(os.path.join(self.directory, file_path))
+			self.basket_indices.append(index)#that's exactly true here, thereafter there are changes
 		#print self.basket_files
 
 

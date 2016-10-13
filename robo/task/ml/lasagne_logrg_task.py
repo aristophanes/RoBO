@@ -123,6 +123,7 @@ class LogisticRegression(BaseTask):
         l1_reg = np.int32(x[0, 4])
         best_validation_loss = np.inf
         #num_epochs=500
+        val_losses = []
 
         # Load the dataset
         #print("Loading data...")
@@ -198,8 +199,11 @@ class LogisticRegression(BaseTask):
                 val_acc += acc
                 val_batches += 1
 
-            if val_acc < best_validation_loss:
-                best_validation_loss = val_acc
+            val_loss = 1. - val_acc / float(val_batches)
+            val_losses.append(val_loss)
+            
+            if val_loss < best_validation_loss:
+                best_validation_loss = val_loss
             # Then we print the results for this epoch:
             print("Epoch {} of {} took {:.3f}s".format(
                 epoch + 1, self.num_epochs, time.time() - start_time))
@@ -234,7 +238,7 @@ class LogisticRegression(BaseTask):
 
 
 
-        return np.array([[best_validation_loss]])
+        return np.array([[best_validation_loss]]), val_losses
         
     def objective_function_test(self, x):        
         self.objective_function(x)

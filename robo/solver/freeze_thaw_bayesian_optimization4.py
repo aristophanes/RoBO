@@ -74,6 +74,10 @@ class FreezeThawBO(BaseSolver):
 		maximize_func: MaximizerObject
 		    Optimization method that is used to maximize the acquisition
 		    function
+		nr_epochs_init: integer 
+		    Number of epochs for executing the task at the initial configurations
+		nr_epochs_further: integer 
+		    Number of epochs for executing the task at further configurations		
 		"""
 		
 		super(FreezeThawBO, self).__init__(acquisition_func, freeze_thaw_model, maximize_func, task)

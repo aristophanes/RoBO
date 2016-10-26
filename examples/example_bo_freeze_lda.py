@@ -9,7 +9,7 @@ import numpy as np
 #from robo.task.ml.logistic_regression_freeze import LogisticRegression
 #from robo.task.ml.lasagne_logrg_task_freeze import LogisticRegression
 from robo.task.ml.lda_task_freeze import LDA
-from robo.solver.freeze_thaw_bayesian_optimization4 import FreezeThawBO
+from robo.solver.freeze_thaw_bayesian_optimization import FreezeThawBO
 #from robo.solver.freeze_thaw_bayesian_optimization3 import FreezeThawBO
 from robo.models.freeze_thaw_model import FreezeThawGP
 #from robo.models.freeze_thaw_model_ec import FreezeThawGP

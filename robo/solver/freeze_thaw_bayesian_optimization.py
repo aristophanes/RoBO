@@ -21,11 +21,7 @@ from scipy.stats import norm
 
 logger = logging.getLogger(__name__)
 
-"""
-In this version 4 in comparision to the previous one 3, we are trying
-to be the adequte to lasagne_logrg_task_freeze.py and simultaneously trying
-to be more general for kinds of cases
-"""
+
 
 class FreezeThawBO(BaseSolver):
 
@@ -202,19 +198,19 @@ class FreezeThawBO(BaseSolver):
 				print 'Maximal number of epochs'
 				break
 
-			print '######################iteration nr: ', k, '#################################'
+			print '######################iteration nr: {:d} #################################'.format(k)
 
 			#res = self.choose_next(X=self.basketOld_X, Y=self.basketOld_Y, do_optimize=True)
 			#here just choose the next candidates, which will be stored in basketNew
 			res = self.choose_next_ei(X=self.basketOld_X, Y=self.basketOld_Y, do_optimize=True)
 			#res = res[0]
-			print 'res: ', res
+			print 'res: {:s}'.format(res)
 			ig = InformationGainMC(model=self.freezeModel, X_lower=self.task.X_lower, X_upper=self.task.X_upper, sampling_acquisition=EI)
 			ig.update(self.freezeModel, calc_repr=True)
 			H = ig.compute()
 			zb = deepcopy(ig.zb)
 			lmb = deepcopy(ig.lmb)
-			print 'H: ', H
+			print 'H: {}'.format(H)
 			# Fantasize over the old and the new configurations
 			nr_old = self.init_points
 			fant_old = np.zeros(nr_old)
@@ -246,9 +242,9 @@ class FreezeThawBO(BaseSolver):
 				H1 = ig1.compute()
 				Hfant[i] = H1
 
-			print 'Hfant: ', Hfant
-			print 'freezeModel.X: ', freezeModel.X
-			print 'res: ', res
+			print 'Hfant: {}'.format(Hfant)
+			print 'freezeModel.X: {}'.format(freezeModel.X)
+			print 'res: {:s}'format(res)
 
 			for k in xrange(nr_new):
 
@@ -273,16 +269,16 @@ class FreezeThawBO(BaseSolver):
 				ig1.update(freezeModel)
 				H1 = ig1.compute()
 				Hfant[-(nr_new - k)] = H1 #?? why the initial - ?
-				print 'Hfant: ', Hfant
+				print 'Hfant: {}'.format(Hfant)
 			
 			# Comparison of the different values
 			infoGain = -(Hfant - H)
 			winner = np.argmax(infoGain)
-			print 'the winner is index: ', winner
+			print 'the winner is index: {:d}'.format(winner)
 
 			#run an old configuration and actualize basket
 			if winner <= ((len(Hfant) - 1) - nr_new):
-				print '###################### run old config ######################'
+				print('###################### run old config ######################')
 				# run corresponding configuration for more one step
 				##change: the task function should send the model file_path back and it should be stored here
 				#ytplus1 = self.task.f(t=len(self.basketOld_Y[winner]) + 1, x=self.basketOld_X[winner])
@@ -311,7 +307,7 @@ class FreezeThawBO(BaseSolver):
 
 			#else run the new proposed configuration and actualize
 			else:
-				print '###################### run new config ######################'
+				print('###################### run new config ######################')
 				winner = winner - nr_old
 				##change: the task function should send the model file_path back and it should be saved here
 				#ytplus1 = self.task.f(t=1, x=res[winner])

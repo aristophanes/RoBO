@@ -428,12 +428,12 @@ class FreezeThawGP(BaseModel):
         kx_star = self.kernel_hyper(self.X, self.xprime, show=show)
 
         if kx_star is None:
-            if show: print 'kx_star is None'
+            if show: print('kx_star is None')
             return None
 
         kx = self.kernel_hyper(self.X, self.X)
         if kx is None:
-            if show: print 'kx is None'
+            if show: print('kx is None')
             return None
 
         if len(xprime.shape) > 1:
@@ -447,7 +447,7 @@ class FreezeThawGP(BaseModel):
 
         kx_inv = self.invers(kx)
         if kx_inv is None:
-            if show: print 'kx_inv is None' 
+            if show: print('kx_inv is None')
             return None
 
         m_const = self.m_const
@@ -458,7 +458,7 @@ class FreezeThawGP(BaseModel):
             Lambda, gamma = self.gammaLambda(self.m_const)
         #print 'Lambda.shape: ', Lambda
         if Lambda is None or gamma is None:
-            if show: print 'Lambda is None or gamma is None' 
+            if show: print('Lambda is None or gamma is None')
             return None
 
 
@@ -466,7 +466,7 @@ class FreezeThawGP(BaseModel):
 
         C = self.invers(C_inv)
         if C is None:
-            if show: print 'C is None'
+            if show: print('C is None')
             return None
 
         self.C = C
@@ -487,12 +487,12 @@ class FreezeThawGP(BaseModel):
         #Now calculate the covariance
         kstar_star = self.kernel_hyper(self.xprime, self.xprime)
         if kstar_star is None:
-            if show: print 'kstar_star is None'
+            if show: print('kstar_star is None')
             return None
 
         Lambda_inv = self.invers(Lambda)
         if Lambda_inv is None:
-            if show: print 'Lambda_inv is None'
+            if show: print('Lambda_inv is None')
             return None
 
         kx_lamdainv = kx + Lambda_inv
@@ -500,7 +500,7 @@ class FreezeThawGP(BaseModel):
         kx_lamdainv_inv = self.invers(kx_lamdainv)
 
         if kx_lamdainv_inv is None:
-            if show: print 'kx_lamdainv_inv is None'
+            if show: print('kx_lamdainv_inv is None')
             return None
 
         cov= kstar_star - np.dot(kx_star.T, np.dot(kx_lamdainv_inv, kx_star))
@@ -895,21 +895,21 @@ class FreezeThawGP(BaseModel):
             x = x.reshape(1,len(x))
 
         if show: 
-            print 'in kernel_hyper xprime: ', xprime.shape, ' and x: ', x.shape
+            print 'in kernel_hyper xprime: {:s} and x: {:s}'.format(xprime.shape, x.shape)
         try:
             r2 = np.sum(((x[:, np.newaxis] - xprime)**2) /
                 self.theta_d**2, axis=-1)
             if show:
-                print 'in kernel_hyper r2: ', r2.shape
+                print 'in kernel_hyper r2: {:s}'.format(r2.shape)
             fiveR2 = 5 * r2
             result = self.theta0 *(1 + np.sqrt(fiveR2) + fiveR2/3.)*np.exp(-np.sqrt(fiveR2))
-            if show: print 'in kernel_hyper result1: ', result.shape
+            if show: print 'in kernel_hyper result1: {:s}'.format(result.shape)
             if result.shape[1] > 1:
                 toadd = np.eye(N=result.shape[0], M=result.shape[1])
-                if show: print 'in kernel_hyper toadd: ', toadd.shape, ' noiseHyper: ', self.noiseHyper 
+                if show: print 'in kernel_hyper toadd: {:s} noiseHyper: {}'.format(toadd.shape, self.noiseHyper) 
                 result = result +  toadd*self.noiseHyper
             if show:
-                print 'in kernel_hyper result2: ', result.shape
+                print 'in kernel_hyper result2: {:s}'.format(result.shape)
             return result
         except:
             return None

@@ -30,7 +30,7 @@ def plot_running(runCurves, predCurve, predStd2, trueCurve, conf=False):
 		yn = runCurves[i]
 		tn = np.arange(len(yn))
 		label = 'config ' + str(i+1)
-		pl.plot(tn, yn, c=colors[i], marker='x')#, label=label
+		pl.plot(tn, yn, c=colors[i], marker='x')
 	
 	pl.xlabel('steps')
 	pl.ylabel('y values')
@@ -45,7 +45,8 @@ def plot_mean_curve(means, std2s, curves, colors):
 
 def plot_mean(means, std2s, colors):
 	figure = pl.figure()
-	x = np.arange(1, len(means)+1) #configurations
+	#configurations
+	x = np.arange(1, len(means)+1)
 	pl.scatter(x, means, s=50, c=colors)
 	xnew = np.linspace(x.min(), x.max(), 300)
 	power_smooth = spline(x, means, xnew)
@@ -140,7 +141,6 @@ def example_predict_asymptotic():
 		xs = np.linspace(1, steps, grid*steps)
 		epslon = sigma*np.random.randn() + mu
 		curve = task.f(t=np.arange(1, steps+1), x=init[i,:]) + epslon
-		#print 'curve: ', curve
 		ys[i] = curve
 
 	freeze_thaw_model = FreezeThawGP(x_train=init, y_train=ys, invChol=True, lg=False)

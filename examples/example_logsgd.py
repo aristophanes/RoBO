@@ -19,7 +19,6 @@ acquisition_func = EI(model,
                      X_lower=logsgd.X_lower,
                      par=0.1)
 
-#maximizer = CMAES(acquisition_func, logsgd.X_lower, logsgd.X_upper)
 maximizer = Direct(acquisition_func, logsgd.X_lower, logsgd.X_upper)
 
 bo = BayesianOptimization(acquisition_func=acquisition_func,

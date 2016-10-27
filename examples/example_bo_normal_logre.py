@@ -9,11 +9,7 @@ from robo.models.gaussian_process_mcmc import GaussianProcessMCMC
 from robo.acquisition.ei import EI
 from robo.maximizers.cmaes import CMAES
 from robo.maximizers.direct import Direct
-#from robo.task.synthetic_functions.branin import Branin
-#from robo.task.ml.logistic_regression import LogisticRegression
 from robo.task.ml.lasagne_logrg_task import LogisticRegression
-#from robo.task.ml.logistic_regression_freeze import LogisticRegression
-#from robo.solver.bayesian_optimization import BayesianOptimization
 from robo.solver.bayesian_optimization1 import BayesianOptimization
 from robo.initial_design.init_random_uniform import init_random_uniform
 from robo.priors.default_priors import DefaultPrior
@@ -21,11 +17,6 @@ from robo.acquisition.integrated_acquisition import IntegratedAcquisition
 
 """
 def load_data(dataset='mnist.pkl.gz'):
-	''' Loads the dataset
-
-	:type dataset: string
-	:param dataset: the path to the dataset (here MNIST)
-	'''
 	with gzip.open(dataset, 'rb') as f:
 		try:
 			train_set, valid_set, test_set = pickle.load(f, encoding='latin1')
@@ -39,33 +30,26 @@ def load_dataset():
     def load_mnist_images(filename):
         with gzip.open(filename, 'rb') as f:
             data = np.frombuffer(f.read(), np.uint8, offset=16)
-        # The inputs are vectors now, we reshape them to monochrome 2D images,
-        # following the shape convention: (examples, channels, rows, columns)
+
         data = data.reshape(-1, 1, 28, 28)
-        # The inputs come as bytes, we convert them to float32 in range [0,1].
-        # (Actually to range [0, 255/256], for compatibility to the version
-        # provided at http://deeplearning.net/data/mnist/mnist.pkl.gz.)
+
+        #http://deeplearning.net/data/mnist/mnist.pkl.gz.)
         return data / np.float32(256)
 
     def load_mnist_labels(filename):
-        # Read the labels in Yann LeCun's binary format.
         with gzip.open(filename, 'rb') as f:
             data = np.frombuffer(f.read(), np.uint8, offset=8)
-        # The labels are vectors of integers now, that's exactly what we want.
+        
         return data
 
-    # We can now download and read the training and test set images and labels.
     X_train = load_mnist_images('train-images-idx3-ubyte.gz')
     y_train = load_mnist_labels('train-labels-idx1-ubyte.gz')
     X_test = load_mnist_images('t10k-images-idx3-ubyte.gz')
     y_test = load_mnist_labels('t10k-labels-idx1-ubyte.gz')
 
-    # We reserve the last 10000 training examples for validation.
     X_train, X_val = X_train[:-10000], X_train[-10000:]
     y_train, y_val = y_train[:-10000], y_train[-10000:]
 
-    # We just return all the arrays in order, as expected in main().
-    # (It doesn't matter how we do this as long as we can read them again.)
     return X_train, y_train, X_val, y_val, X_test, y_test
 
 
@@ -308,7 +292,6 @@ logre = LogisticRegression(train=X_train, train_targets=y_train,
 
 noise = 1.0
 cov_amp = 2
-#exp_kernel = george.kernels.Matern52Kernel([1.0, 1.0], ndim=logre.n_dims)
 lengths = [1.0 for i in xrange(logre.n_dims)]
 exp_kernel = george.kernels.Matern52Kernel(lengths, ndim=logre.n_dims)
 kernel = cov_amp * exp_kernel

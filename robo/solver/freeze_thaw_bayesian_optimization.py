@@ -175,7 +175,6 @@ class FreezeThawBO(BaseSolver):
 			self.total_nr_confs+=1
 			val_losses_all = val_losses_all + val_losses
 			nr_epochs+=len(val_losses)
-			#print 'in ftbo4 ys[i]: ', type(ys[i])
 			
 
 		self.basketOld_Y = deepcopy(ys)
@@ -217,9 +216,7 @@ class FreezeThawBO(BaseSolver):
 
 			for i in xrange(nr_old):
 				fv = self.freezeModel.predict(option='old', conf_nr=i)
-				# print 'fv: ', fv
 				fant_old[i] = fv[0]
-				# print 'fant_old[i]: ', fant_old[i]
 			
 			nr_new = res.shape[0]
 
@@ -244,7 +241,7 @@ class FreezeThawBO(BaseSolver):
 
 			print 'Hfant: {}'.format(Hfant)
 			print 'freezeModel.X: {}'.format(freezeModel.X)
-			print 'res: {:s}'format(res)
+			print 'res: {:s}'.format(res)
 
 			for k in xrange(nr_new):
 
@@ -268,7 +265,7 @@ class FreezeThawBO(BaseSolver):
 				ig1.actualize(zb, lmb)
 				ig1.update(freezeModel)
 				H1 = ig1.compute()
-				Hfant[-(nr_new - k)] = H1 #?? why the initial - ?
+				Hfant[-(nr_new - k)] = H1 #the why of the initial -
 				print 'Hfant: {}'.format(Hfant)
 			
 			# Comparison of the different values
@@ -423,19 +420,16 @@ class FreezeThawBO(BaseSolver):
 		self.freezeModel.train(X, Y, do_optimize=do_optimize)
 
 		x = initial_design(self.task.X_lower, self.task.X_upper, N=N)
-		#print 'in choose_next_ei x: ', x.shape
 
 		ei_list = np.zeros(x.shape[0])
 
 		for i in xrange(N):
 			ei_list[i] = compute_ei(X=x[i,:], model=self.freezeModel, ys=Y, basketOld_X=X)
 
-		#print 'in choose_next_ei ei_list: ', ei_list.shape
 
 		sort = np.argsort(ei_list)
 
 		highest_confs = x[sort][-M:]
-		#print 'in choose_next_ei highest_confs: ', highest_confs.shape
 
 		return highest_confs
 
@@ -450,7 +444,6 @@ class FreezeThawBO(BaseSolver):
 				file_path = "config_" + str(index)
 			self.basket_files.append(os.path.join(self.directory, file_path))
 			self.basket_indices.append(index)#that's exactly true here, thereafter there are changes
-		#print self.basket_files
 
 
 def f(t, a=0.1, b=0.1, x=None):
@@ -473,26 +466,19 @@ def estimate_incumbent(Y, basketOld_X):
     return incumbent[np.newaxis, :], incumbent_value[:, np.newaxis] 
 
 def compute_ei(X, model, ys, basketOld_X, par=0.0):
-    #print 'in compute_ei X: ', X
     m, v = model.predict(X[None,:])
-    # m = m[0]
-    # v = v[0]
-    #print 'in compute_ei m: ', m, ' and v: ', v 
 
     Y = getY(ys)
-    #print 'in compute_ei Y: ', Y
 
     _, eta = estimate_incumbent(Y, basketOld_X)
     # eta = eta[0,0]
-    #print 'in compute_ei eta: ', eta
 
     s = np.sqrt(v)
 
     z = (eta - m - par) / s
-    #print 'in compute_ei z: ', z
 
     f = s * ( z * norm.cdf(z) +  norm.pdf(z))
-    #print 'in compute ei f: ', f
+
     return f
 
 def get_min_ei(model, basketOld_X, basketOld_Y):

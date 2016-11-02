@@ -13,7 +13,6 @@ from robo.task.base_task import BaseTask
 from robo.solver.base_solver import BaseSolver
 from robo.incumbent.best_observation import BestObservation
 from robo.models.freeze_thaw_model import FreezeThawGP
-from robo.task.synthetic_functions.exp_decay import ExpDecay
 from robo.maximizers.direct import Direct
 from robo.acquisition.ei import EI
 from robo.acquisition.information_gain_mc_freeze import InformationGainMC
@@ -168,7 +167,7 @@ class FreezeThawBO(BaseSolver):
 			#ys[i] = self.task.f(np.arange(1, 1 + self.first_steps), x=init[i, :]) ##change: that's not general
 			#ys[i] = self.task.objective(nr_epochs=None, save_file_new=self.basket_files, save_file_old=None)
 			self.task.set_save_modus(is_old=False, file_old=None, file_new=self.basket_files[i])
-			self.set_epochs(self.nr_epochs_inits)
+			self.task.set_epochs(self.nr_epochs_inits)
 			#print 'init[i,:]: ', init[i,:]
 			#_, ys[i] = self.task.objective_function(x=init[i,:][np.newaxis,:])
 			conf_now = init[i,:]
@@ -308,7 +307,7 @@ class FreezeThawBO(BaseSolver):
 				#ytplus1 = self.task.f(t=len(self.basketOld_Y[winner]) + 1, x=self.basketOld_X[winner])
 				#ytplus1 = self.task.f(t=len(self.basketOld_Y[winner]) + 1, x=self.basketOld_X[winner], save_file_old=self.basket_files[winner])
 				self.task.set_save_modus(is_old=True, file_old=self.basket_files[winner], file_new=None)
-				self.set_epochs(self.nr_epochs_further)
+				self.task.set_epochs(self.nr_epochs_further)
 
 				if self.pkl:
 					with open(self.basket_files[winner],'rb') as f:
@@ -353,7 +352,7 @@ class FreezeThawBO(BaseSolver):
 				file_path = os.path.join(self.directory, file_path)
 				#ytplus1 = self.task.f(t=1, x=res[winner], save_file_new=file_path)
 				self.task.set_save_modus(is_old=False, file_old=None, file_new=file_path)
-				self.set_epochs(self.nr_epochs_further)
+				self.task.set_epochs(self.nr_epochs_further)
 				#ytplus1 = self.task.objective_function(x=res[winner])
 
 				logger.info("Evaluate candidate %s" % (str(res[winner][np.newaxis,:])))
@@ -385,6 +384,7 @@ class FreezeThawBO(BaseSolver):
 				self.total_nr_confs+=1
 				self.basket_indices[replace]=self.total_nr_confs
 				#add new configuration with learning curve and index
+				conf_to_run = res[winner]
 				self.all_configs[self.total_nr_confs] = [conf_to_run, self.basketOld_Y[winner], True, replace]
 
 			Y = getY(self.basketOld_Y)
@@ -502,43 +502,37 @@ class FreezeThawBO(BaseSolver):
 			self.basket_files.append(os.path.join(self.directory, file_path))
 			self.basket_indices.append(index)#that's exactly true here, thereafter there are changes
 
-    
-    def get_json_data(self, it):
-        '''
+	def get_json_data(self, it):
+		jsonData = dict()
+		jsonData = {
+		"optimization_overhead":None if self.time_overhead is None else self.time_overhead[it],
+		"runtime":None if self.time_start is None else time.time() - self.time_start,
+		"incumbent":None if self.incumbent is None else self.incumbent.tolist(),
+		"incumbent_fval":None if self.incumbent_value is None else self.incumbent_value.tolist(),
+		"time_func_eval": self.time_func_eval[it],
+		"iteration":it
+		}
+		return jsonData
 
-        Overrides method in BaseSolver.
 
-        '''
-        jsonData = dict()
-        jsonData = {
-                    "optimization_overhead":None if self.time_overhead is None else self.time_overhead[it],
-                    "runtime":None if self.time_start is None else time.time() - self.time_start,
-                    "incumbent":None if self.incumbent is None else self.incumbent.tolist(),
-                    "incumbent_fval":None if self.incumbent_value is None else self.incumbent_value.tolist(),
-                    "time_func_eval": self.time_func_eval[it],
-                    "iteration":it
-                    }
-        return jsonData
+	def save_json(self, it, **kwargs):
+		base_solver_data =self.get_json_data(it)
+		base_model_data = self.model.get_json_data()
+		base_task_data = self.task.get_json_data()
+		base_acquisition_data = self.acquisition_func.get_json_data()
 
-    def save_json(self, it, **kwargs):
+		data = {'Solver': base_solver_data,
+		'Model': base_model_data,
+		'Task':base_task_data,
+		'Acquisiton':base_acquisition_data
+		}
 
-    	base_solver_data =self.get_json_data(it)
-    	base_model_data = self.model.get_json_data()
-    	base_task_data = self.task.get_json_data()
-    	base_acquisition_data = self.acquisition_func.get_json_data()
+		if kwargs is not None:
+			for key, value in kwargs.items():
+				data[key] = str(value)
 
-    	data = {'Solver': base_solver_data,
-    	'Model': base_model_data,
-    	'Task':base_task_data,
-    	'Acquisiton':base_acquisition_data
-    	}
-
-    	if kwargs is not None:
-    		for key, value in kwargs.items():
-    			data[key] = str(value)
-
-    	json.dump(data, self.output_file_json)
-    	self.output_file_json.write('\n')  #Json more readable. Drop it?
+		json.dump(data, self.output_file_json)
+		self.output_file_json.write('\n')  #Json more readable. Drop it?
 
 
 def f(t, a=0.1, b=0.1, x=None):

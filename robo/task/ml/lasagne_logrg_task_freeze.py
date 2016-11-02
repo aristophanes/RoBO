@@ -66,22 +66,18 @@ class LogisticRegression(BaseTask):
         l_in = lasagne.layers.InputLayer(shape=(None, 1, 28, 28),
                                          input_var=input_var)
 
-
-        l_hid1 = lasagne.layers.DenseLayer(
-                l_in, num_units=800,
-                nonlinearity=lasagne.nonlinearities.rectify,
-                W=lasagne.init.GlorotUniform())
+        l_in_drop = lasagne.layers.DropoutLayer(l_in, p=dropout_rate)
 
        
 
-        self.l2_penalty = regularize_layer_params(l_hid1, l2)
-        self.l1_penalty = regularize_layer_params(l_hid1, l1)
+        self.l2_penalty = regularize_layer_params(l_in_drop, l2)
+        self.l1_penalty = regularize_layer_params(l_in_drop, l1)
 
-        l_hid1_drop = lasagne.layers.DropoutLayer(l_hid1, p=dropout_rate)
+        
 
 
         l_out = lasagne.layers.DenseLayer(
-                l_hid1_drop, num_units=10,
+                l_in_drop, num_units=10,
                 nonlinearity=lasagne.nonlinearities.softmax)
 
 

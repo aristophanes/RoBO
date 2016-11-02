@@ -69,4 +69,4 @@ bo = FreezeThawBO(acquisition_func=acquisition_func,
 #                          task=logre, init_points=10,
 #                          max_epochs=500, stop_epochs=True)
 
-incumbent, incumbent_value = bo.run(10000)
+incumbent, incumbent_value = bo.run(5)

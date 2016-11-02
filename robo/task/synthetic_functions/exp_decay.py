@@ -36,3 +36,11 @@ class ExpDecay(BaseTask):
 			a, b = x
 
 		return a*np.exp(-b*t)
+    
+    def set_save_modus(self, is_old=True, file_old=None, file_new=None):
+        self.save_old = is_old
+        self.save = True
+        if self.save_old:
+            self.file_name = file_old
+        else:
+            self.file_name = file_new

@@ -8,6 +8,10 @@ import os
 from itertools import izip
 from robo.task.base_task import BaseTask
 
+"""
+Adapted from https://github.com/blei-lab/onlineldavb
+"""
+
 class LDA(BaseTask):
 
     def __init__(self, train=None, train_targets=None,

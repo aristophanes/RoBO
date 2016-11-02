@@ -8,8 +8,10 @@ from robo.task.base_task import BaseTask
 #from base import Base, DimensionError
 
 """
-Base class
+Adapted from https://github.com/chyikwei/recommend
 """
+
+
 class NotImplementedError(Exception):
 
     def __init__(self):

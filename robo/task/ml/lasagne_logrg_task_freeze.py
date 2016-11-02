@@ -54,9 +54,9 @@ class LogisticRegression(BaseTask):
         # 6 Dim Epochs Number: 1 to 100
         X_lower = np.array([np.log(1e-6), 0.0, 20, 0, 0.1, 1])
         #X_lower = np.array([np.log(1e-6), 0.0, 1000, 0, 0.1, 1])
-        X_upper = np.array([np.log(1e-1), 1.0, 2000, 0.75, 20, 100])
+        #X_upper = np.array([np.log(1e-1), 1.0, 2000, 0.75, 20, 100])
         #X_upper = np.array([np.log(1e-1), 1.0, 2000, 0.75, 20, 10])
-        #X_upper = np.array([np.log(1e-1), 1.0, 2000, 0.75, 20, 7])
+        X_upper = np.array([np.log(1e-1), 1.0, 2000, 0.75, 20, 7])
         #X_upper = np.array([np.log(1e-1), 1.0, 2000, 0.75, 20, 3])
         super(LogisticRegression, self).__init__(X_lower, X_upper)
 

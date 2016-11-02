@@ -4,7 +4,7 @@ import cPickle as pickle
 from robo.acquisition.ei import EI
 from robo.maximizers.cmaes import CMAES
 import numpy as np
-from robo.task.ml.lasagne_logrg_task_freeze import LogisticRegression
+from robo.task.ml.lasagne_logrg_task_freeze_trial import LogisticRegression
 from robo.solver.freeze_thaw_bayesian_optimization import FreezeThawBO
 from robo.models.freeze_thaw_model import FreezeThawGP
 from robo.maximizers.direct import Direct
@@ -42,9 +42,9 @@ def load_dataset():
 X_train, y_train, X_val, y_val, X_test, y_test = load_dataset()
 
 logre = LogisticRegression(train=X_train, train_targets=y_train,
-	valid=X_val, valid_targets=y_val,
-	test=X_test, test_targets=y_test,
-	n_classes=10, num_epochs=3)
+    valid=X_val, valid_targets=y_val,
+    test=X_test, test_targets=y_test,
+    n_classes=10, num_epochs=3)
 
 
 #logre.X_upper = np.array([np.log(1e-1), 1.0, 2000, 0.75, 20, 10])
